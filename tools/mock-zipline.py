@@ -1294,6 +1294,10 @@ if __name__ == "__main__":
 
     tls = "--tls" in sys.argv
     port = 8443 if tls else 8099
+    # --port lets several mocks run at once, which is how the multi-server profile list gets
+    # exercised: one instance per port, one app profile pointing at each.
+    if "--port" in sys.argv:
+        port = int(sys.argv[sys.argv.index("--port") + 1])
     # Threading: the app holds a keep-alive connection for the API while Coil opens a second
     # one for previews. A single-threaded server would deadlock the image requests behind it.
     srv = ThreadingHTTPServer(("0.0.0.0", port), Handler)

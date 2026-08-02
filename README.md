@@ -7,8 +7,8 @@
 **A native Android client for your self-hosted [Zipline v4](https://zipline.diced.sh) server.**
 
 Upload from anywhere on your phone, browse and manage your files, and administer the
-server — against your own instance, with your token in hardware-backed encrypted storage
-and no telemetry of any kind.
+server — against your own instance, or several at once, with your token in hardware-backed
+encrypted storage and no telemetry of any kind.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-2ea44f.svg)](LICENSE)
 [![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3ddc84.svg?logo=android&logoColor=white)](#requirements)
@@ -26,10 +26,10 @@ and no telemetry of any kind.
 |:---:|:---:|:---:|
 | <img src="docs/screenshots/03-dashboard.png" width="230" alt="Dashboard"> | <img src="docs/screenshots/09-files-grid.png" width="230" alt="File grid"> | <img src="docs/screenshots/06-totp-setup.png" width="230" alt="TOTP enrollment with QR and authenticator hand-off"> |
 
-<sub><b>30 more screenshots</b> — open a section below.</sub>
+<sub><b>33 more screenshots</b> — open a section below.</sub>
 
 <details>
-<summary><b>Signing in &amp; your account</b> — sign-in, invite signup, account menu, avatar, sessions, two-factor</summary>
+<summary><b>Signing in &amp; your account</b> — sign-in, invite signup, servers, account menu, avatar, sessions, two-factor</summary>
 
 | Sign in | Sign up from an invite | Account menu |
 |:---:|:---:|:---:|
@@ -46,6 +46,10 @@ and no telemetry of any kind.
 | Diagnostic | Server version | Sharing links |
 |:---:|:---:|:---:|
 | <img src="docs/screenshots/32-diagnostic.png" width="230" alt="Diagnostic page: history, logs, settings backup and import"> | <img src="docs/screenshots/33-server-version.png" width="230" alt="Zipline server version panel"> | <img src="docs/screenshots/34-sharing.png" width="230" alt="Link format: plain, markdown or view page"> |
+
+| Servers | | |
+|:---:|:---:|:---:|
+| <img src="docs/screenshots/36-servers.png" width="230" alt="Server list with three profiles, each with its own URL and settings"> | | |
 
 </details>
 
@@ -208,8 +212,18 @@ a password, change role and quota, delete with or without their content) and inv
 
 ### Multi-server
 
-Several profiles, each with its own base URL, token, cleartext policy and optional certificate
-pin, switchable from the top bar.
+ZipShare talks to as many Zipline instances as you want, not just one. Every profile carries its
+own base URL, API token, cleartext policy and certificate pin, so a box on your LAN reached over
+plain HTTP and a public instance behind a pinned certificate coexist without either one weakening
+the other.
+
+Tap the server address in the top bar to switch. Everything follows the active profile — the
+dashboard, the file browser, admin screens, and the destination of the next upload — so moving
+between a personal and a shared instance takes one tap rather than signing out and back in.
+
+Profiles are managed from *Servers* in the navigation drawer; the first is created for you when
+you sign in, and the rest are added with the **+** button. Deleting one removes its stored token
+from the device.
 
 ### Sharing links
 
