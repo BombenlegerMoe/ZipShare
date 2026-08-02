@@ -53,8 +53,10 @@ android {
         applicationId = "dev.zipshare"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        // versionCode is what Android compares to decide an upgrade; versionName is only a label.
+        // It must increase for an existing install to accept the new APK.
+        versionCode = 2
+        versionName = "1.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

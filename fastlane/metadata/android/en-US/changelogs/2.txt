@@ -1,0 +1,7 @@
+Housekeeping release. Nothing changes in what the app does.
+
+- Settings are stored as one record instead of a key per setting, with every
+  limit enforced in one place so an imported settings file and the in-app
+  editor can no longer disagree
+- Settings from 1.0 are carried over on upgrade, including the app lock
+- Removed dead code found by a pass over the whole repository
