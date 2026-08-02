@@ -1,0 +1,25 @@
+*.iml
+.gradle
+/.idea
+.DS_Store
+# Every module's output, not just the root - "/build" alone would have committed app/build.
+build/
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+# Kotlin 2.x build-tool scratch dir
+.kotlin/
+
+# tools/ is Python
+__pycache__/
+*.pyc
+
+# Local test media for the mock server; drop any .mp4 here to exercise the player.
+tools/sample.mp4
+
+# Signing material - never commit these.
+/keystore/
+keystore.properties
+*.jks
+*.keystore

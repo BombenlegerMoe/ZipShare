@@ -1,0 +1,22 @@
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="upload_file"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_file"
+        android:shortcutShortLabel="@string/shortcut_upload_file">
+        <intent
+            android:action="dev.zipshare.action.UPLOAD_FILE"
+            android:targetPackage="dev.zipshare"
+            android:targetClass="dev.zipshare.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="upload_text"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_text"
+        android:shortcutShortLabel="@string/shortcut_upload_text">
+        <intent
+            android:action="dev.zipshare.action.UPLOAD_TEXT"
+            android:targetPackage="dev.zipshare"
+            android:targetClass="dev.zipshare.MainActivity" />
+    </shortcut>
+</shortcuts>

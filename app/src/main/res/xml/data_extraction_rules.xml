@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup disableIfNoEncryptionCapabilities="true">
+        <exclude domain="sharedpref" path="zipshare_secure.xml" />
+        <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs__.xml" />
+        <exclude domain="file" path="datastore/" />
+        <exclude domain="database" path="zipshare.db" />
+        <exclude domain="database" path="zipshare.db-shm" />
+        <exclude domain="database" path="zipshare.db-wal" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="zipshare_secure.xml" />
+        <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs__.xml" />
+        <exclude domain="file" path="datastore/" />
+        <exclude domain="database" path="zipshare.db" />
+        <exclude domain="database" path="zipshare.db-shm" />
+        <exclude domain="database" path="zipshare.db-wal" />
+    </device-transfer>
+</data-extraction-rules>

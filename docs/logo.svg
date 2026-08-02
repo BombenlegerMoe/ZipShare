@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 108 108" role="img" aria-label="ZipShare logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="108" y2="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#161A33"/>
+      <stop offset="1" stop-color="#3A1E63"/>
+    </linearGradient>
+    <clipPath id="squircle">
+      <rect x="0" y="0" width="108" height="108" rx="24" ry="24"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#squircle)">
+    <rect width="108" height="108" fill="url(#bg)"/>
+    <path d="M34,50 L65,50 L36,74 L74,74" fill="none" stroke="#F4F6FF" stroke-width="11"
+          stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M65,24 L77,47 L53,47 Z" fill="#4ADECB"/>
+  </g>
+</svg>

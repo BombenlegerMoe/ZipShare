@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">ZipShare</string>
+    <string name="channel_upload_name">Uploads</string>
+    <string name="channel_upload_desc">Upload progress and results</string>
+    <string name="shortcut_upload_file">Upload file</string>
+    <string name="shortcut_upload_text">Upload text</string>
+    <string name="tile_upload">ZipShare upload</string>
+</resources>

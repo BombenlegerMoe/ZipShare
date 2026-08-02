@@ -1,0 +1,3 @@
+# gradlew is executed by /bin/sh on Linux and macOS runners. CRLF endings would
+# make the shebang line `#!/bin/sh\r`, which fails with a bad-interpreter error.
+gradlew text eol=lf

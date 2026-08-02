@@ -1,0 +1,12 @@
+Initial release.
+
+- Multi-server profiles with encrypted token storage
+- Share-target, photo-picker and file-picker uploads with chunking
+- Dashboard, files, folders, URLs, metrics and admin screens
+- Create folders (nested), short links and users from the app
+- Sign in by API token, username/password with two-factor, or QR code
+- In-app video and audio playback
+- Upload notifications with per-category toggles
+- Launcher shortcuts and Quick Settings upload tile
+- Certificate pinning, biometric app lock
+- Encrypted on-device activity log with in-app export

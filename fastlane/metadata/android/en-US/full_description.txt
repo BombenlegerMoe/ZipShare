@@ -1,0 +1,28 @@
+ZipShare is a native Android client for self-hosted Zipline v4 instances.
+
+<b>Uploading</b>
+- Share files from any app straight to your server, or pick them with the photo picker / file picker
+- Large files upload in chunks with resumable retries, driven by WorkManager
+- Per-upload options (format, expiry, password, folder, max views) plus app-wide defaults
+- Launcher shortcuts and a Quick Settings tile jump straight into an upload
+- Upload progress, completion and failure notifications, each individually toggleable
+
+<b>Dashboard</b>
+- The Zipline web dashboard, natively: recent files, stats, file types, metrics
+- Browse files, folders and URLs; built-in image viewer with copy-link
+- Play videos and audio in the app over the same authenticated connection
+- Create folders (public or private, nested), short links with vanity codes, and users
+- Admin tools: server settings, actions, users and invites
+- Multiple server profiles with per-profile settings
+- Sign in with an API token, a username and password (two-factor supported), or an invite link
+- Turn two-factor on or off, and hand the secret to an authenticator app in one tap
+- Account settings: avatar, username, password, and sign out other devices individually or all at once
+
+<b>Security</b>
+- API token stored in hardware-backed encrypted preferences (StrongBox when available)
+- TLS 1.2/1.3 only, optional certificate pinning per server
+- No analytics, no crash reporting - the app talks to your server and nothing else
+- Optional biometric app lock, secure-screen flags, backups excluded
+- On-device activity log encrypted with a Keystore key, exportable only from inside the app
+
+ZipShare is not affiliated with the Zipline project.
