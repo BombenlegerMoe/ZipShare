@@ -4,7 +4,7 @@ Initial release.
 - Share-target, photo-picker and file-picker uploads with chunking
 - Dashboard, files, folders, URLs, metrics and admin screens
 - Create folders (nested), short links and users from the app
-- Sign in by API token, username/password with two-factor, or QR code
+- Sign in by API token, username/password with two-factor ( if set up )
 - In-app video and audio playback
 - Upload notifications with per-category toggles
 - Launcher shortcuts and Quick Settings upload tile
