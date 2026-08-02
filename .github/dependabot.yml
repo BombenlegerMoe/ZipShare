@@ -5,8 +5,28 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      # The Kotlin plugin, the Compose compiler plugin and KSP are version-locked to one
+      # another - KSP is published as <kotlin>-<ksp> and the Compose compiler plugin ships
+      # with the Kotlin release. Bumping any of them alone fails the build, so they have to
+      # arrive as one pull request rather than three that are each individually broken.
+      kotlin:
+        patterns:
+          - "org.jetbrains.kotlin*"
+          - "com.google.devtools.ksp*"
+      # AndroidX moves as a fleet and the Compose BOM pins the Compose artifacts, so one
+      # grouped pull request is far easier to judge than a dozen separate ones - and with
+      # the dependencies this far behind, ungrouped updates would hit the limit of 5
+      # immediately and hide the rest.
+      androidx:
+        patterns:
+          - "androidx.*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      actions:
+        patterns:
+          - "*"
