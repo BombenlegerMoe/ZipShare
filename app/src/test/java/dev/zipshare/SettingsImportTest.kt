@@ -58,6 +58,35 @@ class SettingsImportTest {
         }
     }
 
+    /**
+     * An import goes through the same clamps the UI does. Before these lived in one place the two
+     * paths could disagree, so a hand-edited file could set a value the UI would refuse.
+     */
+    @Test
+    fun `sanitise clamps every bound and drops a saved filename`() {
+        val wild = AppSettings(
+            lockTimeoutSeconds = 99_999,
+            themeMode = "neon",
+            partialThresholdMiB = 0,
+            chunkSizeMiB = 9_999,
+            recentCount = 500,
+            defaultOptions = dev.zipshare.data.model.UploadOptions(filename = "always-this.png"),
+        ).sanitised()
+
+        assertEquals(3600, wild.lockTimeoutSeconds)
+        assertEquals("system", wild.themeMode)
+        assertEquals(1, wild.partialThresholdMiB)
+        assertEquals(512, wild.chunkSizeMiB)
+        assertEquals(100, wild.recentCount)
+        assertNull("a saved filename overrides the name format on every upload", wild.defaultOptions.filename)
+    }
+
+    @Test
+    fun `sanitise leaves a valid settings object untouched`() {
+        val fine = AppSettings(lockTimeoutSeconds = 120, themeMode = "dark", recentCount = 42)
+        assertEquals(fine, fine.sanitised())
+    }
+
     @Test
     fun `the exported upload defaults never carry a password`() {
         val withPassword = AppSettings(

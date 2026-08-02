@@ -88,47 +88,49 @@ class SettingsViewModel @Inject constructor(
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
 
+    private fun edit(block: (AppSettings) -> AppSettings) = viewModelScope.launch { store.update(block) }
+
     fun setAppLock(enabled: Boolean) = viewModelScope.launch {
         AppLog.logAuth("app lock ${if (enabled) "enabled" else "disabled"}")
-        store.setAppLock(enabled)
+        store.update { it.copy(appLockEnabled = enabled) }
     }
 
-    fun setTimeout(seconds: Int) = viewModelScope.launch { store.setLockTimeout(seconds) }
+    fun setTimeout(seconds: Int) = edit { it.copy(lockTimeoutSeconds = seconds) }
 
-    fun setDynamicColor(enabled: Boolean) = viewModelScope.launch { store.setDynamicColor(enabled) }
+    fun setDynamicColor(enabled: Boolean) = edit { it.copy(dynamicColor = enabled) }
 
-    fun setThemeMode(mode: String) = viewModelScope.launch { store.setThemeMode(mode) }
+    fun setThemeMode(mode: String) = edit { it.copy(themeMode = mode) }
 
-    fun setThreshold(mib: Int) = viewModelScope.launch { store.setPartialThreshold(mib) }
+    fun setThreshold(mib: Int) = edit { it.copy(partialThresholdMiB = mib) }
 
-    fun setChunkSize(mib: Int) = viewModelScope.launch { store.setChunkSize(mib) }
+    fun setChunkSize(mib: Int) = edit { it.copy(chunkSizeMiB = mib) }
 
-    fun setDefaults(options: UploadOptions) = viewModelScope.launch { store.setDefaultOptions(options) }
+    fun setDefaults(options: UploadOptions) = edit { it.copy(defaultOptions = options) }
 
-    fun setSkipUploadSheet(skip: Boolean) = viewModelScope.launch { store.setSkipUploadSheet(skip) }
+    fun setSkipUploadSheet(skip: Boolean) = edit { it.copy(skipUploadSheet = skip) }
 
-    fun setLinkFormat(format: LinkFormat) = viewModelScope.launch { store.setLinkFormat(format) }
+    fun setLinkFormat(format: LinkFormat) = edit { it.copy(linkFormat = format) }
 
-    fun setNotifyProgress(on: Boolean) = viewModelScope.launch { store.setNotifyProgress(on) }
+    fun setNotifyProgress(on: Boolean) = edit { it.copy(notifyProgress = on) }
 
-    fun setNotifyComplete(on: Boolean) = viewModelScope.launch { store.setNotifyComplete(on) }
+    fun setNotifyComplete(on: Boolean) = edit { it.copy(notifyComplete = on) }
 
-    fun setNotifyFailed(on: Boolean) = viewModelScope.launch { store.setNotifyFailed(on) }
+    fun setNotifyFailed(on: Boolean) = edit { it.copy(notifyFailed = on) }
 
     fun clearDefaults() = viewModelScope.launch {
-        store.setDefaultOptions(UploadOptions.DEFAULT)
+        store.update { it.copy(defaultOptions = UploadOptions.DEFAULT) }
         _message.value = "Upload defaults cleared."
     }
 
-    fun setRecentCount(count: Int) = viewModelScope.launch { store.setRecentCount(count) }
+    fun setRecentCount(count: Int) = edit { it.copy(recentCount = count) }
 
-    fun setShowRecents(show: Boolean) = viewModelScope.launch { store.setShowRecents(show) }
+    fun setShowRecents(show: Boolean) = edit { it.copy(showRecents = show) }
 
-    fun setShowStats(show: Boolean) = viewModelScope.launch { store.setShowStats(show) }
+    fun setShowStats(show: Boolean) = edit { it.copy(showStats = show) }
 
-    fun setShowTypes(show: Boolean) = viewModelScope.launch { store.setShowTypes(show) }
+    fun setShowTypes(show: Boolean) = edit { it.copy(showTypes = show) }
 
-    fun setShowLocalHistory(show: Boolean) = viewModelScope.launch { store.setShowLocalHistory(show) }
+    fun setShowLocalHistory(show: Boolean) = edit { it.copy(showLocalHistory = show) }
 
     fun clearMessage() {
         _message.value = null

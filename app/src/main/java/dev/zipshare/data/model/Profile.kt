@@ -22,41 +22,32 @@ data class Profile(
     val host: String? get() = baseUrl.toHttpUrlOrNull()?.host
 }
 
-sealed interface UrlProblem {
-    data object Unparseable : UrlProblem
-    data object CleartextNotAllowed : UrlProblem
-    data object HasQueryOrFragment : UrlProblem
-}
-
-class BaseUrlException(val problem: UrlProblem) : Exception(BaseUrl.message(problem))
+/** Every caller reads only [message], so the reason travels as the text itself. */
+class BaseUrlException(message: String) : Exception(message)
 
 object BaseUrl {
 
     /** Parses and normalises a user-typed base url. */
     fun parse(raw: String, allowCleartext: Boolean): Result<HttpUrl> {
         val trimmed = raw.trim().trimEnd('/')
-        if (trimmed.isEmpty()) return Result.failure(BaseUrlException(UrlProblem.Unparseable))
+        if (trimmed.isEmpty()) return fail("That is not a valid URL.")
 
         val withScheme =
             if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed
             else "https://$trimmed"
 
-        val url = withScheme.toHttpUrlOrNull()
-            ?: return Result.failure(BaseUrlException(UrlProblem.Unparseable))
+        val url = withScheme.toHttpUrlOrNull() ?: return fail("That is not a valid URL.")
 
         if (url.querySize > 0 || url.fragment != null) {
-            return Result.failure(BaseUrlException(UrlProblem.HasQueryOrFragment))
+            return fail("Base URL must not contain a query string or fragment.")
         }
         if (!url.isHttps && !allowCleartext) {
-            return Result.failure(BaseUrlException(UrlProblem.CleartextNotAllowed))
+            return fail(
+                "http:// requires \"Allow cleartext\", and the host must be listed in network_security_config.xml.",
+            )
         }
         return Result.success(url)
     }
 
-    fun message(problem: UrlProblem): String = when (problem) {
-        UrlProblem.Unparseable -> "That is not a valid URL."
-        UrlProblem.CleartextNotAllowed ->
-            "http:// requires \"Allow cleartext\", and the host must be listed in network_security_config.xml."
-        UrlProblem.HasQueryOrFragment -> "Base URL must not contain a query string or fragment."
-    }
+    private fun fail(message: String) = Result.failure<HttpUrl>(BaseUrlException(message))
 }

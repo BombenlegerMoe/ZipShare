@@ -332,6 +332,31 @@ fun UsersScreen(onMenu: () -> Unit, vm: BrowseViewModel = hiltViewModel()) {
 }
 
 /** Rename, toggle visibility and uploads, or delete - the same options the web dashboard has. */
+/**
+ * The AlertDialog skeleton every dialog here shares: a title, a body, a confirm button whose label
+ * and enablement vary, and a Cancel that only dismisses. The body stays a plain slot so each
+ * dialog keeps its own Column arrangement - imposing one here would reflow half of them.
+ */
+@Composable
+private fun FormDialog(
+    title: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    confirmEnabled: Boolean = true,
+    body: @Composable () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = body,
+        confirmButton = {
+            TextButton(enabled = confirmEnabled, onClick = onConfirm) { Text(confirmLabel) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
 @Composable
 private fun EditFolderDialog(
     folder: dev.zipshare.data.net.ZFolder,
@@ -346,75 +371,65 @@ private fun EditFolderDialog(
 
     if (confirmDelete) {
         var keepFiles by remember { mutableStateOf(true) }
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete \"${folder.name}\"?") },
-            text = {
-                Column {
-                    Text("What should happen to the files inside it?")
-                    Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Switch(checked = keepFiles, onCheckedChange = { keepFiles = it })
-                        Text(
-                            if (keepFiles) {
-                                "Keep them - they move out of the folder"
-                            } else {
-                                "Delete them along with the folder"
-                            },
-                            Modifier.padding(start = 8.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { confirmDelete = false; onDelete(keepFiles); onDismiss() }) {
-                    Text("Delete")
-                }
-            },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
-        )
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Edit folder") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Name") },
-                    singleLine = true,
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Switch(checked = isPublic, onCheckedChange = { isPublic = it })
-                    Text("Public", Modifier.padding(start = 8.dp))
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Switch(checked = allowUploads, onCheckedChange = { allowUploads = it })
-                    Text("Allow uploads from others", Modifier.padding(start = 8.dp))
-                }
-                TextButton(onClick = { confirmDelete = true }) {
-                    Text("Delete folder", color = MaterialTheme.colorScheme.error)
+        FormDialog(
+            title = "Delete \"${folder.name}\"?",
+            confirmLabel = "Delete",
+            onConfirm = { confirmDelete = false; onDelete(keepFiles); onDismiss() },
+            onDismiss = { confirmDelete = false },
+        ) {
+            Column {
+                Text("What should happen to the files inside it?")
+                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Switch(checked = keepFiles, onCheckedChange = { keepFiles = it })
+                    Text(
+                        if (keepFiles) {
+                            "Keep them - they move out of the folder"
+                        } else {
+                            "Delete them along with the folder"
+                        },
+                        Modifier.padding(start = 8.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             }
+        }
+    }
+
+    FormDialog(
+        title = "Edit folder",
+        confirmLabel = "Save",
+        confirmEnabled = name.isNotBlank(),
+        onConfirm = {
+            // Only send what actually changed.
+            onSave(
+                name.trim().takeIf { it != folder.name },
+                isPublic.takeIf { it != folder.isPublic },
+                allowUploads.takeIf { it != folder.allowUploads },
+            )
+            onDismiss()
         },
-        confirmButton = {
-            TextButton(
-                enabled = name.isNotBlank(),
-                onClick = {
-                    // Only send what actually changed.
-                    onSave(
-                        name.trim().takeIf { it != folder.name },
-                        isPublic.takeIf { it != folder.isPublic },
-                        allowUploads.takeIf { it != folder.allowUploads },
-                    )
-                    onDismiss()
-                },
-            ) { Text("Save") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
+        onDismiss = onDismiss,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Name") },
+                singleLine = true,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Switch(checked = isPublic, onCheckedChange = { isPublic = it })
+                Text("Public", Modifier.padding(start = 8.dp))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Switch(checked = allowUploads, onCheckedChange = { allowUploads = it })
+                Text("Allow uploads from others", Modifier.padding(start = 8.dp))
+            }
+            TextButton(onClick = { confirmDelete = true }) {
+                Text("Delete folder", color = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
 }
 
 /** Rename, set a new password, change role and quota, or delete the account. */
@@ -442,39 +457,55 @@ private fun EditUserDialog(
 
     if (confirmDelete) {
         var alsoContent by remember { mutableStateOf(false) }
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete ${user.username}?") },
-            text = {
-                Column {
-                    Text("The account is removed from the server.")
-                    Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Switch(checked = alsoContent, onCheckedChange = { alsoContent = it })
-                        Text(
-                            "Also delete their files and links",
-                            Modifier.padding(start = 8.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
+        FormDialog(
+            title = "Delete ${user.username}?",
+            confirmLabel = "Delete",
+            onConfirm = { confirmDelete = false; onDelete(alsoContent); onDismiss() },
+            onDismiss = { confirmDelete = false },
+        ) {
+            Column {
+                Text("The account is removed from the server.")
+                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Switch(checked = alsoContent, onCheckedChange = { alsoContent = it })
+                    Text(
+                        "Also delete their files and links",
+                        Modifier.padding(start = 8.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { confirmDelete = false; onDelete(alsoContent); onDismiss() }) {
-                    Text("Delete")
-                }
-            },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
-        )
+            }
+        }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Edit ${user.username}") },
-        text = {
-            Column(
-                Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+    FormDialog(
+        title = "Edit ${user.username}",
+        confirmLabel = "Save",
+        confirmEnabled = username.isNotBlank(),
+        onConfirm = {
+            val quota = if (maxBytes.isNotBlank() || maxFiles.isNotBlank() || maxUrls.isNotBlank()) {
+                dev.zipshare.data.net.QuotaBody(
+                    filesType = if (maxBytes.isNotBlank()) "BY_BYTES" else "BY_FILES",
+                    maxBytes = maxBytes.trim().takeIf { it.isNotEmpty() },
+                    maxFiles = maxFiles.toIntOrNull(),
+                    maxUrls = maxUrls.toIntOrNull(),
+                )
+            } else {
+                null
+            }
+            onSave(
+                username.trim().takeIf { it != user.username },
+                password.takeIf { it.isNotBlank() },
+                role.takeIf { it != user.role },
+                quota,
+            )
+            onDismiss()
+        },
+        onDismiss = onDismiss,
+    ) {
+        Column(
+            Modifier.verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
                 OutlinedTextField(
                     value = username,
                     onValueChange = { username = it },
@@ -532,34 +563,8 @@ private fun EditUserDialog(
                         Text("Delete user", color = MaterialTheme.colorScheme.error)
                     }
                 }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = username.isNotBlank(),
-                onClick = {
-                    val quota = if (maxBytes.isNotBlank() || maxFiles.isNotBlank() || maxUrls.isNotBlank()) {
-                        dev.zipshare.data.net.QuotaBody(
-                            filesType = if (maxBytes.isNotBlank()) "BY_BYTES" else "BY_FILES",
-                            maxBytes = maxBytes.trim().takeIf { it.isNotEmpty() },
-                            maxFiles = maxFiles.toIntOrNull(),
-                            maxUrls = maxUrls.toIntOrNull(),
-                        )
-                    } else {
-                        null
-                    }
-                    onSave(
-                        username.trim().takeIf { it != user.username },
-                        password.takeIf { it.isNotBlank() },
-                        role.takeIf { it != user.role },
-                        quota,
-                    )
-                    onDismiss()
-                },
-            ) { Text("Save") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
+        }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -572,81 +577,71 @@ private fun CreateFolderDialog(
     var name by remember { mutableStateOf("") }
     var isPublic by remember { mutableStateOf(false) }
     var parentId by remember { mutableStateOf<String?>(null) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("New folder") },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Name") },
-                    singleLine = true,
+    FormDialog(
+        title = "New folder",
+        confirmLabel = "Create",
+        confirmEnabled = name.isNotBlank(),
+        onConfirm = { onCreate(name.trim(), isPublic, parentId); onDismiss() },
+        onDismiss = onDismiss,
+    ) {
+        Column {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Name") },
+                singleLine = true,
+            )
+            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Switch(checked = isPublic, onCheckedChange = { isPublic = it })
+                Text("Public", Modifier.padding(start = 8.dp))
+            }
+            if (existing.isNotEmpty()) {
+                Text(
+                    "Inside (optional)",
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(top = 8.dp),
                 )
-                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Switch(checked = isPublic, onCheckedChange = { isPublic = it })
-                    Text("Public", Modifier.padding(start = 8.dp))
-                }
-                if (existing.isNotEmpty()) {
-                    Text(
-                        "Inside (optional)",
-                        style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        existing.forEach { f ->
-                            FilterChip(
-                                selected = parentId == f.id,
-                                onClick = { parentId = if (parentId == f.id) null else f.id },
-                                label = { Text(f.name) },
-                            )
-                        }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    existing.forEach { f ->
+                        FilterChip(
+                            selected = parentId == f.id,
+                            onClick = { parentId = if (parentId == f.id) null else f.id },
+                            label = { Text(f.name) },
+                        )
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = name.isNotBlank(),
-                onClick = { onCreate(name.trim(), isPublic, parentId); onDismiss() },
-            ) { Text("Create") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
+        }
+    }
 }
 
 @Composable
 private fun CreateUrlDialog(onDismiss: () -> Unit, onCreate: (String, String?) -> Unit) {
     var destination by remember { mutableStateOf("") }
     var vanity by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Shorten a URL") },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = destination,
-                    onValueChange = { destination = it },
-                    label = { Text("Destination (https://...)") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = vanity,
-                    onValueChange = { vanity = it },
-                    label = { Text("Vanity code (optional)") },
-                    singleLine = true,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = destination.startsWith("http"),
-                onClick = { onCreate(destination.trim(), vanity.trim()); onDismiss() },
-            ) { Text("Create") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
+    FormDialog(
+        title = "Shorten a URL",
+        confirmLabel = "Create",
+        confirmEnabled = destination.startsWith("http"),
+        onConfirm = { onCreate(destination.trim(), vanity.trim()); onDismiss() },
+        onDismiss = onDismiss,
+    ) {
+        Column {
+            OutlinedTextField(
+                value = destination,
+                onValueChange = { destination = it },
+                label = { Text("Destination (https://...)") },
+                singleLine = true,
+            )
+            OutlinedTextField(
+                value = vanity,
+                onValueChange = { vanity = it },
+                label = { Text("Vanity code (optional)") },
+                singleLine = true,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+    }
 }
 
 @Composable
@@ -654,45 +649,40 @@ private fun CreateUserDialog(onDismiss: () -> Unit, onCreate: (String, String, S
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var role by remember { mutableStateOf("USER") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("New user") },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = { username = it },
-                    label = { Text("Username") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text("Password") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-                Row(
-                    Modifier.padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    listOf("USER", "ADMIN").forEach { r ->
-                        FilterChip(
-                            selected = role == r,
-                            onClick = { role = r },
-                            label = { Text(r) },
-                        )
-                    }
+    FormDialog(
+        title = "New user",
+        confirmLabel = "Create",
+        confirmEnabled = username.isNotBlank() && password.isNotBlank(),
+        onConfirm = { onCreate(username.trim(), password, role); onDismiss() },
+        onDismiss = onDismiss,
+    ) {
+        Column {
+            OutlinedTextField(
+                value = username,
+                onValueChange = { username = it },
+                label = { Text("Username") },
+                singleLine = true,
+            )
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Password") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Row(
+                Modifier.padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                listOf("USER", "ADMIN").forEach { r ->
+                    FilterChip(
+                        selected = role == r,
+                        onClick = { role = r },
+                        label = { Text(r) },
+                    )
                 }
             }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = username.isNotBlank() && password.isNotBlank(),
-                onClick = { onCreate(username.trim(), password, role); onDismiss() },
-            ) { Text("Create") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
+        }
+    }
 }
