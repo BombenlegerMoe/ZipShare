@@ -74,6 +74,7 @@ import dev.zipshare.ui.shell.LocalLinkFormat
 import dev.zipshare.ui.shell.PullRefresh
 import dev.zipshare.ui.shell.ShellTopBar
 import dev.zipshare.ui.upload.UploadSheet
+import dev.zipshare.ui.upload.fileDropTarget
 import java.text.DateFormat
 import java.util.Date
 import kotlin.math.roundToInt
@@ -250,7 +251,8 @@ fun HomeScreen(
         PullRefresh(
             refreshing = state.syncing,
             onRefresh = vm::refresh,
-            modifier = Modifier.fillMaxSize().padding(padding),
+            // Dropping files from a split-screen app goes through the same path as the pickers.
+            modifier = Modifier.fillMaxSize().padding(padding).fileDropTarget(vm::filesPicked),
         ) {
         LazyColumn(
             Modifier.fillMaxSize(),
