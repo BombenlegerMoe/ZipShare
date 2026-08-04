@@ -1,0 +1,3 @@
+- Search every screen and setting from the dashboard, using the magnifier next to your avatar
+- Results say where each setting lives, and tapping one takes you straight there
+- Finds what you would type, not just the exact label: "dark" finds the theme, "2fa" finds two-factor
