@@ -26,6 +26,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -52,8 +53,10 @@ import dev.zipshare.security.Biometrics
 import dev.zipshare.ui.FocusTarget
 import dev.zipshare.ui.search.SearchAction
 import dev.zipshare.ui.shareFile
+import dev.zipshare.upload.ImageCompressor
 import dev.zipshare.ui.upload.UploadOptionsForm
 import java.io.File
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -281,6 +284,55 @@ fun SettingsScreen(
                         initial = s.chunkSizeMiB,
                         label = "Chunk size (MiB)",
                         onCommit = vm::setChunkSize,
+                    )
+                }
+            }
+
+            HorizontalDivider()
+            Text("Compress images on this device", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Re-encodes photos before uploading, so less goes over mobile data. This is not " +
+                    "the same as the server's Image compression below: that one shrinks the file " +
+                    "after it arrives, so the upload itself is still full size. Turning this on " +
+                    "skips the server's compression for those files, to avoid re-encoding twice.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            FocusTarget("device_compression", focus) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ToggleRow("Compress before uploading", s.deviceCompression, vm::setDeviceCompression)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(ImageCompressor.WEBP to "WebP", ImageCompressor.JPEG to "JPEG").forEach { (v, label) ->
+                            FilterChip(
+                                selected = s.deviceCompressionFormat == v,
+                                onClick = { vm.setDeviceCompressionFormat(v) },
+                                label = { Text(label) },
+                                enabled = s.deviceCompression,
+                            )
+                        }
+                    }
+                    Text(
+                        "Quality ${s.deviceCompressionQuality}" +
+                            if (s.deviceCompressionFormat == ImageCompressor.WEBP) {
+                                " - WebP is usually a third smaller than JPEG at the same quality."
+                            } else {
+                                " - JPEG is the safer choice for very old clients."
+                            },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Slider(
+                        value = s.deviceCompressionQuality.toFloat(),
+                        onValueChange = { vm.setDeviceCompressionQuality(it.roundToInt()) },
+                        valueRange = 30f..100f,
+                        steps = 13,
+                        enabled = s.deviceCompression,
+                    )
+                    Text(
+                        "Animated GIFs and WebP are never re-encoded - it would keep only the " +
+                            "first frame.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }

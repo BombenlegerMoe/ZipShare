@@ -16,6 +16,7 @@ import dev.zipshare.log.AppLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import java.io.File
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -51,25 +52,76 @@ class UploadEnqueuer @Inject constructor(
                 if (secretId == null) options else options.copy(password = null),
             )
             val workName = "$WORK_PREFIX${UUID.randomUUID()}"
-            val partialThreshold = settings.current().partialThresholdBytes
+            val cfg = settings.current()
+            val partialThreshold = cfg.partialThresholdBytes
+
+            /**
+             * Server-side compression stripped for anything already re-encoded here: letting
+             * Zipline compress it again would be a second lossy pass that saves nothing, since the
+             * bytes have already been shrunk before they left the device.
+             */
+            val optionsJsonCompressed = json.encodeToString(
+                UploadOptions.serializer(),
+                (if (secretId == null) options else options.copy(password = null))
+                    .copy(compressionType = null, compressionPercent = null),
+            )
 
             val requests = uris.map { original ->
                 // Resolve name/type from the ORIGINAL content uri, where the ContentResolver still
                 // knows the real mime. A staged copy is a plain file:// and getType() would fall
                 // back to guessing from the extension.
                 val meta = UploadInput.meta(context, original)
+
+                // Re-encode before staging, while the caller's uri grant is still alive. A null
+                // result means it was not worth it or not possible, and the original goes up
+                // untouched - never a failed upload just because compression did not help.
+                val compressed = if (cfg.deviceCompression && ImageCompressor.canCompress(meta.mime)) {
+                    ImageCompressor.compress(
+                        context = context,
+                        uri = original,
+                        format = cfg.deviceCompressionFormat,
+                        quality = cfg.deviceCompressionQuality,
+                        cacheDir = File(context.cacheDir, "staged"),
+                        originalSize = meta.size,
+                    )
+                } else {
+                    null
+                }
+
                 // Staging happens here, while the caller's uri grant is still alive. Anything
                 // large enough to take the chunked path is staged even if the grant would have
                 // survived, so the per-chunk seek lands on a real file rather than a pipe.
-                val (uri, staged) = UploadInput.stageIfNeeded(
-                    context,
-                    original,
-                    forSeeking = meta.size > partialThreshold,
-                )
+                val (uri, staged) = if (compressed != null) {
+                    // Already a plain file in our own cache, and the worker must delete it after.
+                    Uri.fromFile(compressed) to true
+                } else {
+                    UploadInput.stageIfNeeded(
+                        context,
+                        original,
+                        forSeeking = meta.size > partialThreshold,
+                    )
+                }
+                val name = if (compressed != null) {
+                    ImageCompressor.renameForFormat(meta.name, cfg.deviceCompressionFormat)
+                } else {
+                    meta.name
+                }
+                val mime = if (compressed != null) {
+                    ImageCompressor.mimeForFormat(cfg.deviceCompressionFormat)
+                } else {
+                    meta.mime
+                }
+
                 OneTimeWorkRequestBuilder<UploadWorker>()
                     .setInputData(
                         UploadWorker.inputFor(
-                            uri, profileId, optionsJson, staged, secretId, meta.name, meta.mime,
+                            uri,
+                            profileId,
+                            if (compressed != null) optionsJsonCompressed else optionsJson,
+                            staged,
+                            secretId,
+                            name,
+                            mime,
                         ),
                     )
                     .setConstraints(

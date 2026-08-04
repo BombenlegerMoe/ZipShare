@@ -19,6 +19,7 @@ import javax.inject.Singleton
 private val Context.settingsDataStore by preferencesDataStore(name = "zipshare_settings")
 
 private val THEMES = setOf("system", "light", "dark")
+private val COMPRESSION_FORMATS = setOf("webp", "jpeg")
 
 /** Serializable so the whole thing can be exported from Settings in one call. */
 @Serializable
@@ -29,6 +30,12 @@ data class AppSettings(
     val themeMode: String = "system", // system | light | dark
     val partialThresholdMiB: Int = 95,
     val chunkSizeMiB: Int = 16,
+    // --- on-device image compression ---
+    /** Off by default: it is lossy, and silently degrading someone's photos is not a default. */
+    val deviceCompression: Boolean = false,
+    /** [dev.zipshare.upload.ImageCompressor.WEBP] or `JPEG`. */
+    val deviceCompressionFormat: String = "webp",
+    val deviceCompressionQuality: Int = 85,
     val defaultOptions: UploadOptions = UploadOptions.DEFAULT,
     /** Upload straight away with the saved defaults instead of showing the options sheet. */
     val skipUploadSheet: Boolean = false,
@@ -62,6 +69,13 @@ data class AppSettings(
         themeMode = if (themeMode in THEMES) themeMode else "system",
         partialThresholdMiB = partialThresholdMiB.coerceIn(1, 4096),
         chunkSizeMiB = chunkSizeMiB.coerceIn(1, 512),
+        deviceCompressionFormat = if (deviceCompressionFormat in COMPRESSION_FORMATS) {
+            deviceCompressionFormat
+        } else {
+            "webp"
+        },
+        // 0 would upload an unreadable smear, 100 is larger than the original for no gain.
+        deviceCompressionQuality = deviceCompressionQuality.coerceIn(30, 100),
         recentCount = recentCount.coerceIn(1, 100),
         // A fixed name saved as a DEFAULT would silently override the name format on every upload
         // (x-zipline-filename beats x-zipline-format server-side). Stripping on read also heals
