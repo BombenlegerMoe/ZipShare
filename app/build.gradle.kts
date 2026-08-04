@@ -1,10 +1,11 @@
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Properties
 
 plugins {
+    // No kotlin-android plugin: AGP 9 provides Kotlin support itself and rejects it.
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
@@ -47,12 +48,12 @@ tasks.matching { it.name == "assembleRelease" }.configureEach {
 
 android {
     namespace = "dev.zipshare"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "dev.zipshare"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         // versionCode is what Android compares to decide an upgrade; versionName is only a label.
         // It must increase for an existing install to accept the new APK.
         versionCode = 2
@@ -97,8 +98,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
+    // AGP 9 removed the kotlinOptions block along with the standalone Kotlin plugin; the JVM
+    // target now goes through Kotlin's own compilerOptions.
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
     }
 
     packaging {

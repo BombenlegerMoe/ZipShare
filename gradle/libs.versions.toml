@@ -1,8 +1,10 @@
 [versions]
-agp = "8.7.3"
-kotlin = "2.1.0"
-ksp = "2.1.0-1.0.29"
-hilt = "2.53.1"
+agp = "9.3.1"
+# Kotlin is held at 2.3.10 to match KSP, which has no release for 2.4.x yet - Hilt and Room both
+# run through KSP, so Kotlin cannot move ahead of it. Raise both together when KSP 2.4 ships.
+kotlin = "2.3.10"
+ksp = "2.3.10"
+hilt = "2.60.1"
 hiltExt = "1.2.0"
 coreKtx = "1.15.0"
 lifecycle = "2.8.7"
@@ -13,8 +15,8 @@ navigationCompose = "2.8.5"
 retrofit = "2.11.0"
 retrofitKxs = "1.0.0"
 okhttp = "4.12.0"
-kotlinxSerialization = "1.7.3"
-room = "2.6.1"
+kotlinxSerialization = "1.11.0"
+room = "2.8.4"
 work = "2.10.0"
 datastore = "1.1.1"
 securityCrypto = "1.1.0-alpha06"
@@ -73,7 +75,6 @@ junit = { module = "junit:junit", version.ref = "junit" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
