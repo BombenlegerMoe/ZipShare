@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PostAdd
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
@@ -99,6 +100,7 @@ val appSearchIndex: List<SearchEntry> = listOf(
     SearchEntry("Folders", "Browse", Routes.FOLDERS, Icons.Filled.Folder, listOf("albums", "directories")),
     SearchEntry("Short links", "Browse", Routes.URLS, Icons.Filled.Link, listOf("urls", "shorten", "vanity")),
     SearchEntry("Upload text", "Upload", Routes.UPLOAD_TEXT, Icons.Filled.PostAdd, listOf("paste", "snippet", "code", "note")),
+    SearchEntry("Upload queue", "Upload", Routes.QUEUE, Icons.Filled.Schedule, listOf("queue", "pending", "progress", "cancel", "failed")),
     SearchEntry("Servers", "Connection", Routes.SERVERS, Icons.Filled.Dns, listOf("profiles", "instance", "add server", "token", "certificate", "pin", "switch")),
     SearchEntry("Diagnostic", "Troubleshooting", Routes.DIAGNOSTIC, Icons.Filled.BugReport, listOf("logs", "history", "export", "import", "backup", "server version", "debug")),
     SearchEntry("Metrics", "Administrator", Routes.METRICS, Icons.AutoMirrored.Filled.ShowChart, listOf("stats", "charts", "usage"), adminOnly = true),

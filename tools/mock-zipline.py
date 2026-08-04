@@ -16,6 +16,11 @@ import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 TOKEN = "MOCKTOKEN123"
+# Seconds to hold each /api/upload response open; see --slow-upload.
+SLOW_UPLOAD = 0.0
+# --fail-upload rejects every upload with a non-retryable 400, which is the only quick way to reach
+# the queue screen's failed row: a retryable error just backs off for 15s and tries again.
+FAIL_UPLOAD = False
 
 # Username/password sign-in. Set LOGIN_TOTP=1 in the environment to exercise the two-factor path.
 LOGIN_USER = "zipshare"
@@ -852,6 +857,9 @@ class Handler(BaseHTTPRequestHandler):
             zh = {k: v for k, v in self.headers.items() if k.lower().startswith("x-zipline")}
             print(f"    -> UPLOAD {length}B filename={fn.group(1) if fn else '<none>'!r} "
                   f"part-ct={ct.group(1).strip() if ct else '<none>'!r} zh={zh}", flush=True)
+            if FAIL_UPLOAD:
+                print("    -> UPLOAD REJECTED (--fail-upload)", flush=True)
+                return self._err(1000, "Mock rejected this upload", 400)
             # Prepend to FILES so /api/user/recent really does change after an upload -
             # otherwise the dashboard-refresh test would pass without proving anything.
             n = len(FILES) + 1
@@ -861,6 +869,10 @@ class Handler(BaseHTTPRequestHandler):
                    "views": 0, "favorite": False, "originalName": None,
                    "folderId": None, "thumbnail": None}
             FILES.insert(0, new)
+            # --slow-upload holds the response open. Against loopback every upload finishes in
+            # milliseconds, which leaves the queue screen empty before a screenshot can catch it.
+            if SLOW_UPLOAD:
+                time.sleep(SLOW_UPLOAD)
             print(f"    -> upload, {length} bytes -> {new['name']} (now {len(FILES)} files)", flush=True)
             return self._send(200, {"files": [new]})
         if path == "/api/upload/partial":
@@ -1298,6 +1310,9 @@ if __name__ == "__main__":
     # exercised: one instance per port, one app profile pointing at each.
     if "--port" in sys.argv:
         port = int(sys.argv[sys.argv.index("--port") + 1])
+    if "--slow-upload" in sys.argv:
+        SLOW_UPLOAD = float(sys.argv[sys.argv.index("--slow-upload") + 1])
+    FAIL_UPLOAD = "--fail-upload" in sys.argv
     # Threading: the app holds a keep-alive connection for the API while Coil opens a second
     # one for previews. A single-threaded server would deadlock the image requests behind it.
     srv = ThreadingHTTPServer(("0.0.0.0", port), Handler)

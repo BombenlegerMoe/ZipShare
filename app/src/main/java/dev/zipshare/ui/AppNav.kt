@@ -43,6 +43,7 @@ import dev.zipshare.ui.shell.LocalSignedInUser
 import dev.zipshare.ui.shell.NavItem
 import dev.zipshare.ui.shell.isAdministrator
 import dev.zipshare.ui.shell.ZiplineDrawerSheet
+import dev.zipshare.ui.upload.QueueScreen
 import dev.zipshare.ui.upload.UploadTextScreen
 import dev.zipshare.ui.viewer.ImageViewerScreen
 import dev.zipshare.ui.viewer.TextViewerScreen
@@ -61,6 +62,7 @@ object Routes {
     const val FOLDER_FILES = "files/folder"
     const val METRICS = "metrics"
     const val UPLOAD_TEXT = "upload/text"
+    const val QUEUE = "upload/queue"
     const val ADMIN_SETTINGS = "admin/settings"
     const val ADMIN_ACTIONS = "admin/actions"
     const val INVITES = "invites"
@@ -225,6 +227,7 @@ fun AppNav(startAction: String? = null) {
             composable(Routes.URLS) { UrlsScreen(onMenu = openMenu) }
             composable(Routes.USERS) { UsersScreen(onMenu = openMenu) }
             composable(Routes.METRICS) { MetricsScreen(onMenu = openMenu) }
+            composable(Routes.QUEUE) { QueueScreen(onMenu = openMenu) }
             composable(Routes.UPLOAD_TEXT) { UploadTextScreen(onMenu = openMenu) }
             composable(Routes.ADMIN_SETTINGS) { ServerSettingsScreen(onMenu = openMenu) }
             composable(Routes.ADMIN_ACTIONS) { ServerActionsScreen(onMenu = openMenu) }

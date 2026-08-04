@@ -130,6 +130,9 @@ class UploadEnqueuer @Inject constructor(
                     .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.SECONDS)
                     .addTag(TAG)
                     .addTag(workName)
+                    // The queue screen has no other way to name a file that has not started yet:
+                    // WorkInfo exposes tags, progress and output, but never the input data.
+                    .addTag("$NAME_TAG${name.take(120)}")
                     .build()
             }
 
@@ -148,6 +151,7 @@ class UploadEnqueuer @Inject constructor(
 
     companion object {
         const val TAG = "zipshare-upload"
+        const val NAME_TAG = "name:"
         private const val WORK_PREFIX = "upload:"
     }
 }
