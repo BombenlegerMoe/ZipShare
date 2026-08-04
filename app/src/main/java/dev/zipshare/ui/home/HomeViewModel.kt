@@ -254,19 +254,6 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    /** Deletes a server-side file straight from a dashboard card. */
-    fun deleteRemote(file: ZFile) {
-        val active = profiles.activeNow() ?: return
-        viewModelScope.launch {
-            runCatching { clients.api(active).deleteFile(file.id).unwrap() }
-                .onSuccess {
-                    history.delete(file.id)
-                    refresh()
-                }
-                .onFailure { e -> report(active, e) }
-        }
-    }
-
     /**
      * Forgets the on-device upload records only. Deliberately does NOT touch the server - unlike
      * [delete], which removes the actual file. The confirmation dialog spells that out, because

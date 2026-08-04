@@ -53,12 +53,20 @@ class UploadWorker @AssistedInject constructor(
 ) : CoroutineWorker(appContext, params) {
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+    /**
+     * Written from OkHttp's request-writing thread via [report], not the worker's coroutine, so
+     * the value needs to be visible across threads. The read-modify-write is still not atomic;
+     * that is fine for a throttle, where the worst case is one extra notification.
+     */
+    @Volatile
     private var lastNotified = 0L
 
     /** Captured so the (non-suspending) streaming callback can publish progress. */
     private var scope: CoroutineScope? = null
 
     /** Mirrors the notifyProgress setting; the ongoing notification stays either way. */
+    @Volatile
     private var detailedProgress = true
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
@@ -171,7 +179,7 @@ class UploadWorker @AssistedInject constructor(
                 ErrorAction.CLEAR_FOLDER -> settings.clearDefaultUploadFolder()
                 else -> Unit
             }
-            if (ApiErrors.retryable(e.statusCode) && runAttemptCount < MAX_ATTEMPTS) {
+            if (ApiErrors.retryable(e.statusCode) && runAttemptCount < MAX_RETRIES) {
                 AppLog.log("upload", "retrying ${meta.name}: ${e.display}")
                 Result.retry()
             } else {
@@ -180,7 +188,7 @@ class UploadWorker @AssistedInject constructor(
                 fail(e.display, meta.name, e.code)
             }
         } catch (e: IOException) {
-            if (runAttemptCount < MAX_ATTEMPTS) {
+            if (runAttemptCount < MAX_RETRIES) {
                 AppLog.log("upload", "retrying ${meta.name}: ${e.message ?: "I/O error"}")
                 Result.retry()
             } else {
@@ -207,7 +215,11 @@ class UploadWorker @AssistedInject constructor(
         options: UploadOptions,
         notificationId: Int,
     ): Uploaded {
-        val profile = requireNotNull(profiles.byId(profileId))
+        // Not requireNotNull: that throws IllegalArgumentException, which the caller's handler
+        // labels "Invalid upload option" - a deleted profile would be reported as a bad header.
+        val profile = profiles.byId(profileId) ?: throw ZiplineException(
+            0, 0, "profile gone", "Server profile was deleted.", ErrorAction.NONE,
+        )
         val body = ProgressRequestBody(
             mediaType = meta.mime.toMediaTypeOrNull(),
             length = meta.size,
@@ -237,7 +249,11 @@ class UploadWorker @AssistedInject constructor(
         chunkSize: Long,
         notificationId: Int,
     ): Uploaded {
-        val profile = requireNotNull(profiles.byId(profileId))
+        // Not requireNotNull: that throws IllegalArgumentException, which the caller's handler
+        // labels "Invalid upload option" - a deleted profile would be reported as a bad header.
+        val profile = profiles.byId(profileId) ?: throw ZiplineException(
+            0, 0, "profile gone", "Server profile was deleted.", ErrorAction.NONE,
+        )
         val api = clients.api(profile)
         val base = UploadHeaderBuilder.build(options, meta.mime)
         val mediaType = meta.mime.toMediaTypeOrNull()
@@ -333,7 +349,12 @@ class UploadWorker @AssistedInject constructor(
         const val KEY_ERROR_CODE = "error_code"
         const val KEY_OUT_URL = "url"
         const val KEY_OUT_NAME = "name"
-        const val MAX_ATTEMPTS = 5
+        /**
+         * Retries, not attempts. `runAttemptCount` is 0 on the first run, so this permits retries
+         * at counts 0..4 and the sixth run is the first that can fail for good - which is what the
+         * old name MAX_ATTEMPTS promised but did not describe.
+         */
+        const val MAX_RETRIES = 5
         private const val PROGRESS_INTERVAL_MS = 400L
 
         fun inputFor(
