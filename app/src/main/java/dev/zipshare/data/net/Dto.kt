@@ -189,11 +189,6 @@ enum class FileSort(val wire: String, val label: String) {
     SIZE("size", "Size"),
     TYPE("type", "File type"),
     VIEWS("views", "Views"),
-    ;
-
-    companion object {
-        fun fromWire(value: String): FileSort = entries.firstOrNull { it.wire == value } ?: CREATED
-    }
 }
 
 /**

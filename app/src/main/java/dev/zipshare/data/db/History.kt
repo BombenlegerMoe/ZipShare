@@ -32,9 +32,6 @@ interface HistoryDao {
     @Query("SELECT * FROM history ORDER BY ts DESC")
     fun observeAll(): Flow<List<HistoryEntry>>
 
-    @Query("SELECT * FROM history WHERE profileId = :profileId ORDER BY ts DESC")
-    fun observeForProfile(profileId: String): Flow<List<HistoryEntry>>
-
     @Query("SELECT * FROM history ORDER BY ts DESC")
     suspend fun all(): List<HistoryEntry>
 

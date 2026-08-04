@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- Zipline's near-black disc colour, so the mark sits on the same field as their logo. -->
-    <color name="ic_launcher_background">#131316</color>
-</resources>
