@@ -1,0 +1,3 @@
+- Search now jumps straight to the setting you picked and highlights it, instead of only opening the page it is on
+- The search button is on every screen, in the same place, not just the dashboard
+- Upload defaults (compression, name format, expiry, max views and the rest) are now jumped to as well
