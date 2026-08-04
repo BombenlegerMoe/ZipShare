@@ -6,8 +6,24 @@ import android.os.Build
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.zipshare.log.AppLog
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/**
+ * Whether an upload secret started at [startedAt] can no longer belong to a live upload.
+ *
+ * A missing timestamp (0) means the secret was written by a build older than the sweep, so nothing
+ * is known about its age and it cannot be tied to running work either - it is swept rather than
+ * kept forever, which is the leak the sweep exists to close.
+ *
+ * A timestamp in the future is treated as fresh: the device clock moving backwards must not be
+ * able to delete a secret that an upload is still using.
+ *
+ * Pure so the rule can be tested without Keystore or a Context.
+ */
+internal fun isStaleSecret(startedAt: Long, now: Long, maxAgeMillis: Long): Boolean =
+    startedAt <= 0L || now - startedAt > maxAgeMillis
 
 /**
  * Keystore-backed AES256_SIV (keys) / AES256_GCM (values) prefs. StrongBox is requested when the
@@ -77,14 +93,54 @@ class SecureStore @Inject constructor(@ApplicationContext private val context: C
      */
     fun putUploadSecret(value: String): String {
         val id = java.util.UUID.randomUUID().toString()
-        prefs.edit().putString(SECRET_PREFIX + id, value).apply()
+        // Written together so a secret can never exist without the timestamp the sweep judges it by.
+        prefs.edit()
+            .putString(SECRET_PREFIX + id, value)
+            .putLong(STARTED_PREFIX + id, System.currentTimeMillis())
+            .apply()
         return id
     }
 
     fun uploadSecret(id: String): String? = prefs.getString(SECRET_PREFIX + id, null)
 
     fun removeUploadSecret(id: String) {
-        prefs.edit().remove(SECRET_PREFIX + id).apply()
+        prefs.edit().remove(SECRET_PREFIX + id).remove(STARTED_PREFIX + id).apply()
+    }
+
+    /**
+     * Drops upload secrets that no live upload can still be using.
+     *
+     * The worker removes its own secret on every ending including cancellation, but a process
+     * killed mid-upload never runs that code at all - and nothing else would ever remove the key,
+     * so passwords would accumulate for the life of the install. Age is the only usable signal
+     * here: WorkManager does not expose a pending job's input data, so a secret cannot be matched
+     * back to the work that owns it.
+     *
+     * [maxAgeMillis] is deliberately generous. A multi-gigabyte upload over a slow link, plus
+     * WorkManager's exponential backoff across five retries, can legitimately span hours; sweeping
+     * a secret still in use would fail that upload with a wrong password.
+     *
+     * Blocks on disk I/O; call from a worker thread.
+     */
+    fun sweepUploadSecrets(maxAgeMillis: Long = MAX_SECRET_AGE_MS, now: Long = System.currentTimeMillis()) {
+        val ids = prefs.all.keys
+            .filter { it.startsWith(SECRET_PREFIX) }
+            .map { it.removePrefix(SECRET_PREFIX) }
+        if (ids.isEmpty()) return
+
+        val editor = prefs.edit()
+        var swept = 0
+        ids.forEach { id ->
+            if (isStaleSecret(prefs.getLong(STARTED_PREFIX + id, 0L), now, maxAgeMillis)) {
+                editor.remove(SECRET_PREFIX + id).remove(STARTED_PREFIX + id)
+                swept++
+            }
+        }
+        if (swept > 0) {
+            editor.apply()
+            // Count only - never the id, which is the handle to the secret itself.
+            AppLog.log("upload", "swept $swept orphaned upload secret(s)")
+        }
     }
 
     private companion object {
@@ -92,5 +148,12 @@ class SecureStore @Inject constructor(@ApplicationContext private val context: C
         const val RECOVERY_FILE = "zipshare_recovery"
         const val KEY_WAS_RESET = "keyset_was_reset"
         const val SECRET_PREFIX = "upload_secret_"
+
+        /**
+         * Must not itself start with [SECRET_PREFIX], or the sweep would read its own timestamp
+         * keys back as secrets and try to expire them.
+         */
+        const val STARTED_PREFIX = "upload_started_"
+        const val MAX_SECRET_AGE_MS = 24L * 60 * 60 * 1000
     }
 }
