@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.PostAdd
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShieldMoon
 import androidx.compose.material.icons.automirrored.filled.ShowChart
@@ -67,6 +68,7 @@ enum class NavItem(
     FILES("files", "Files", Icons.AutoMirrored.Filled.InsertDriveFile),
     FOLDERS("folders", "Folders", Icons.Filled.Folder),
     UPLOAD_TEXT("upload/text", "Upload text", Icons.Filled.PostAdd),
+    QUEUE("upload/queue", "Upload queue", Icons.Filled.Schedule),
     URLS("urls", "URLs", Icons.Filled.Link),
     ADMIN_SETTINGS("admin/settings", "Settings", Icons.Filled.Tune, adminOnly = true),
     ADMIN_ACTIONS("admin/actions", "Actions", Icons.Filled.Bolt, adminOnly = true),
