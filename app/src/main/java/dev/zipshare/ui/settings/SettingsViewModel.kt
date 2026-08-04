@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.zipshare.data.ProfileBackup
 import dev.zipshare.data.ProfileRepository
 import dev.zipshare.data.db.HistoryDao
 import dev.zipshare.data.db.HistoryEntry
@@ -266,6 +267,63 @@ class SettingsViewModel @Inject constructor(
             },
             onFailure = {
                 _message.value = "That file is not a ZipShare settings export."
+            },
+        )
+    }
+
+    /**
+     * Every server profile, encrypted under [password]. This is the one export that carries API
+     * tokens, which is exactly why it is encrypted and why the settings export still excludes them.
+     *
+     * The work is off the main thread because PBKDF2 at 210k iterations deliberately takes a
+     * noticeable fraction of a second.
+     */
+    fun exportProfiles(password: String, onFile: (File) -> Unit) = viewModelScope.launch {
+        profiles.awaitReady()
+        val list = profiles.profiles.value
+        if (list.isEmpty()) {
+            _message.value = "There are no servers to back up."
+            return@launch
+        }
+        val text = withContext(Dispatchers.IO) { ProfileBackup.encrypt(list, password) }
+        val file = writeExport("zipshare-servers-${System.currentTimeMillis()}.json") { text }
+        // Count only - never a label or url, which would defeat encrypting the file.
+        AppLog.log("profiles", "exported ${list.size} profile(s), encrypted")
+        _message.value = "${list.size} server(s) exported as ${file.name}"
+        onFile(file)
+    }
+
+    /**
+     * Restores a profile backup. Imported servers are added alongside the existing ones rather than
+     * replacing them: this runs on a device that may already be set up, and silently dropping a
+     * working server to honour a file would be the worse mistake.
+     */
+    fun importProfiles(uri: Uri, password: String) = viewModelScope.launch {
+        val result = runCatching {
+            val text = withContext(Dispatchers.IO) {
+                context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
+                    ?: error("could not open the file")
+            }
+            withContext(Dispatchers.IO) { ProfileBackup.decrypt(text, password) }
+        }
+        result.fold(
+            onSuccess = { imported ->
+                profiles.awaitReady()
+                val added = ProfileBackup.toAdd(profiles.profiles.value, imported)
+                // A fresh id: the backup's id may already belong to a different profile here.
+                added.forEach { profiles.upsert(it.copy(id = java.util.UUID.randomUUID().toString())) }
+                AppLog.log("profiles", "imported ${added.size} of ${imported.size} profile(s)")
+                _message.value = when {
+                    added.isEmpty() -> "Those servers are already set up."
+                    else -> "Added ${added.size} server(s)."
+                }
+            },
+            onFailure = { e ->
+                _message.value = when (e) {
+                    is ProfileBackup.WrongPasswordException -> "Wrong password, or the file was changed."
+                    is ProfileBackup.NotABackupException -> "That file is not a ZipShare server backup."
+                    else -> "Could not read that file."
+                }
             },
         )
     }

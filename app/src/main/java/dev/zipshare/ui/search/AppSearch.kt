@@ -143,6 +143,14 @@ val appSearchIndex: List<SearchEntry> = listOf(
     SearchEntry("Activity log", "Diagnostic", Routes.DIAGNOSTIC, Icons.Filled.BugReport, listOf("logs", "export log", "auth log", "troubleshoot"), anchor = "logs"),
     SearchEntry("Backup and import settings", "Diagnostic", Routes.DIAGNOSTIC, Icons.Filled.BugReport, listOf("export settings", "import settings", "backup", "restore"), anchor = "backup"),
     SearchEntry("Zipline server version", "Diagnostic", Routes.DIAGNOSTIC, Icons.Filled.BugReport, listOf("version", "update", "upstream"), anchor = "version"),
+    SearchEntry(
+        "Server backup",
+        "Diagnostic",
+        Routes.DIAGNOSTIC,
+        Icons.Filled.Dns,
+        listOf("export servers", "import servers", "move to new device", "migrate", "tokens", "encrypted backup", "restore"),
+        anchor = "servers_backup",
+    ),
 )
 
 /**
