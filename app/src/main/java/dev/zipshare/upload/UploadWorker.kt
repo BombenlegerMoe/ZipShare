@@ -12,6 +12,7 @@ import dagger.assisted.AssistedInject
 import dev.zipshare.data.ProfileRepository
 import dev.zipshare.data.db.HistoryDao
 import dev.zipshare.data.db.HistoryEntry
+import dev.zipshare.data.model.Profile
 import dev.zipshare.data.model.UploadOptions
 import dev.zipshare.data.net.ApiErrors
 import dev.zipshare.data.net.ErrorAction
@@ -23,11 +24,13 @@ import dev.zipshare.data.net.ZiplineClients
 import dev.zipshare.data.net.ZiplineException
 import dev.zipshare.data.net.shareUrl
 import dev.zipshare.data.net.unwrap
+import dev.zipshare.data.prefs.AppSettings
 import dev.zipshare.data.prefs.SecureStore
 import dev.zipshare.data.prefs.SettingsStore
 import dev.zipshare.log.AppLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -98,7 +101,38 @@ class UploadWorker @AssistedInject constructor(
             )
         }
 
-        val result = try {
+        var outcome: Result? = null
+        try {
+            outcome = uploadOnce(profile, profileId, uri, staged, meta, options, cfg, notificationId)
+            outcome
+        } finally {
+            // Reached on cancellation too, where `outcome` is still null - and cancellation is
+            // exactly the path that used to leak. Only a retry keeps its staged copy and password;
+            // every other ending, including being stopped mid-flight, gives them up.
+            if (outcome !is Result.Retry) {
+                withContext(NonCancellable) {
+                    secretId?.let { secure.removeUploadSecret(it) }
+                    if (staged && uri.scheme == "file") {
+                        uri.path?.let { runCatching { File(it).delete() } }
+                    }
+                }
+            }
+        }
+    }
+
+    /** One attempt. Split out so the caller's `finally` can tell a retry from every other ending. */
+    @Suppress("LongParameterList")
+    private suspend fun uploadOnce(
+        profile: Profile,
+        profileId: String,
+        uri: Uri,
+        staged: Boolean,
+        meta: FileMeta,
+        options: UploadOptions,
+        cfg: AppSettings,
+        notificationId: Int,
+    ): Result {
+        return try {
             val uploaded = if (meta.size > cfg.partialThresholdBytes) {
                 uploadPartial(profileId, uri, meta, options, cfg.chunkSizeBytes, notificationId)
             } else {
@@ -162,16 +196,6 @@ class UploadWorker @AssistedInject constructor(
             if (cfg.notifyFailed) notifications.failure(meta.name, msg)
             fail(msg, meta.name)
         }
-
-        // Only tear down on a terminal outcome. A retry still needs the staged copy and the
-        // password; deleting them in a finally block would make every retry fail.
-        if (result !is Result.Retry) {
-            secretId?.let { secure.removeUploadSecret(it) }
-            if (staged && uri.scheme == "file") {
-                uri.path?.let { runCatching { File(it).delete() } }
-            }
-        }
-        result
     }
 
     private data class Uploaded(val response: UploadResponse, val file: UploadedFile)

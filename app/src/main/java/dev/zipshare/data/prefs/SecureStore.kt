@@ -18,14 +18,37 @@ class SecureStore @Inject constructor(@ApplicationContext private val context: C
 
     val prefs: SharedPreferences by lazy { create() }
 
+    /**
+     * Plain, unencrypted, and deliberately so: it records that the encrypted store had to be
+     * discarded, which is precisely the moment nothing encrypted can be read. It holds one boolean
+     * and never anything sensitive.
+     */
+    private val recovery: SharedPreferences by lazy {
+        context.getSharedPreferences(RECOVERY_FILE, Context.MODE_PRIVATE)
+    }
+
     private fun create(): SharedPreferences = runCatching { open(strongBox = strongBoxAvailable()) }
         .recoverCatching { open(strongBox = false) }
         .recoverCatching {
-            // A corrupt keyset (e.g. after a Keystore reset) must not brick the app.
+            // A corrupt keyset (e.g. after a Keystore reset) must not brick the app. Deleting the
+            // file is the only way back, but it also takes every server profile and token with it,
+            // so leave a marker: silently returning the user to an empty sign-in screen is
+            // indistinguishable from a bug or an unexplained logout.
             context.deleteSharedPreferences(FILE)
+            recovery.edit().putBoolean(KEY_WAS_RESET, true).apply()
             open(strongBox = false)
         }
         .getOrThrow()
+
+    /**
+     * True exactly once after the encrypted store was discarded, so the notice shows on the next
+     * screen the user sees and not on every launch afterwards.
+     */
+    fun consumeKeysetReset(): Boolean {
+        if (!recovery.getBoolean(KEY_WAS_RESET, false)) return false
+        recovery.edit().remove(KEY_WAS_RESET).apply()
+        return true
+    }
 
     private fun strongBoxAvailable(): Boolean =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
@@ -66,6 +89,8 @@ class SecureStore @Inject constructor(@ApplicationContext private val context: C
 
     private companion object {
         const val FILE = "zipshare_secure"
+        const val RECOVERY_FILE = "zipshare_recovery"
+        const val KEY_WAS_RESET = "keyset_was_reset"
         const val SECRET_PREFIX = "upload_secret_"
     }
 }

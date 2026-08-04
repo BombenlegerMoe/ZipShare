@@ -19,11 +19,13 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.Button
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -62,6 +64,7 @@ fun WelcomeScreen(vm: ServersViewModel = hiltViewModel()) {
     SecureScreen()
 
     val state by vm.edit.collectAsStateWithLifecycle()
+    val notice by vm.notice.collectAsStateWithLifecycle()
     val p = state.profile
     var advanced by remember { mutableStateOf(false) }
 
@@ -72,6 +75,35 @@ fun WelcomeScreen(vm: ServersViewModel = hiltViewModel()) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Spacer(Modifier.height(16.dp))
+
+            // Persistent rather than a snackbar: this explains why the user's servers vanished,
+            // and a message that disappears after four seconds is how that turns into a bug report.
+            notice?.let { text ->
+                OutlinedCard(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.outlinedCardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                    ),
+                ) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            "Saved servers were cleared",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                        Text(
+                            text,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                        TextButton(onClick = vm::clearNotice, modifier = Modifier.align(Alignment.End)) {
+                            Text("Dismiss")
+                        }
+                    }
+                }
+            }
+
             Text(
                 "Welcome to ZipShare",
                 style = MaterialTheme.typography.headlineMedium,

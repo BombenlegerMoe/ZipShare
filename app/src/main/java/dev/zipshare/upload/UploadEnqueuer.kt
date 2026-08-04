@@ -11,6 +11,7 @@ import androidx.work.WorkManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.zipshare.data.model.UploadOptions
 import dev.zipshare.data.prefs.SecureStore
+import dev.zipshare.data.prefs.SettingsStore
 import dev.zipshare.log.AppLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -25,6 +26,7 @@ class UploadEnqueuer @Inject constructor(
     @ApplicationContext private val context: Context,
     private val workManager: WorkManager,
     private val secure: SecureStore,
+    private val settings: SettingsStore,
 ) {
     private val json = Json { encodeDefaults = true }
 
@@ -49,14 +51,21 @@ class UploadEnqueuer @Inject constructor(
                 if (secretId == null) options else options.copy(password = null),
             )
             val workName = "$WORK_PREFIX${UUID.randomUUID()}"
+            val partialThreshold = settings.current().partialThresholdBytes
 
             val requests = uris.map { original ->
                 // Resolve name/type from the ORIGINAL content uri, where the ContentResolver still
                 // knows the real mime. A staged copy is a plain file:// and getType() would fall
                 // back to guessing from the extension.
                 val meta = UploadInput.meta(context, original)
-                // Staging happens here, while the caller's uri grant is still alive.
-                val (uri, staged) = UploadInput.stageIfNeeded(context, original)
+                // Staging happens here, while the caller's uri grant is still alive. Anything
+                // large enough to take the chunked path is staged even if the grant would have
+                // survived, so the per-chunk seek lands on a real file rather than a pipe.
+                val (uri, staged) = UploadInput.stageIfNeeded(
+                    context,
+                    original,
+                    forSeeking = meta.size > partialThreshold,
+                )
                 OneTimeWorkRequestBuilder<UploadWorker>()
                     .setInputData(
                         UploadWorker.inputFor(
