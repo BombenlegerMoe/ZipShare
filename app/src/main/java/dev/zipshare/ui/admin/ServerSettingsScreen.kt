@@ -1,5 +1,6 @@
 package dev.zipshare.ui.admin
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -11,8 +12,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -28,6 +32,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -98,34 +103,37 @@ fun ServerSettingsScreen(onMenu: () -> Unit, vm: AdminViewModel = hiltViewModel(
                 EmptyOrError("Could not read server settings. This needs a superadmin token.")
             } else {
                 val grouped = state.settings.groupBy { it.group }
+                // Collapsed by default. Zipline returns ~100 keys across a dozen groups, which as
+                // one flat list is a wall of fields you have to scroll past to reach anything.
+                val expanded = remember { mutableStateMapOf<String, Boolean>() }
+
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
                     grouped.forEach { (group, entries) ->
+                        val open = expanded[group] == true
                         item(key = "hdr-$group") {
-                            Column(Modifier.padding(top = 18.dp, bottom = 4.dp)) {
-                                Text(
-                                    groupTitle(group),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                )
+                            GroupHeader(
+                                title = groupTitle(group),
+                                count = entries.size,
+                                dirty = entries.count { it.dirty },
+                                expanded = open,
                                 // Only this group needs the caveat. A blanket note would be
                                 // wrong: limits like max file size do apply to this app.
-                                if (group.equals("chunks", ignoreCase = true)) {
-                                    Text(
-                                        "These control the web dashboard's uploader. ZipShare " +
-                                            "uses its own values under Settings > Chunked upload.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(top = 2.dp),
-                                    )
-                                }
-                                HorizontalDivider(Modifier.padding(top = 4.dp))
-                            }
-                        }
-                        items(entries, key = { it.key }) { entry ->
-                            SettingRow(
-                                entry = entry,
-                                onChange = { vm.editSetting(entry.key, it) },
+                                note = if (group.equals("chunks", ignoreCase = true)) {
+                                    "These control the web dashboard's uploader. ZipShare " +
+                                        "uses its own values under Settings > Chunked upload."
+                                } else {
+                                    null
+                                },
+                                onToggle = { expanded[group] = !open },
                             )
+                        }
+                        if (open) {
+                            items(entries, key = { it.key }) { entry ->
+                                SettingRow(
+                                    entry = entry,
+                                    onChange = { vm.editSetting(entry.key, it) },
+                                )
+                            }
                         }
                     }
                 }
@@ -162,6 +170,62 @@ fun ServerSettingsScreen(onMenu: () -> Unit, vm: AdminViewModel = hiltViewModel(
             },
             dismissButton = { TextButton(onClick = { confirmSave = false }) { Text("Cancel") } },
         )
+    }
+}
+
+/**
+ * Collapsible section header for one settings group.
+ *
+ * The whole row is the toggle rather than just the chevron - a 24 dp icon is a poor target when
+ * the row is already there.
+ */
+@Composable
+private fun GroupHeader(
+    title: String,
+    count: Int,
+    dirty: Int,
+    expanded: Boolean,
+    note: String?,
+    onToggle: () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(top = 14.dp, bottom = 4.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = if (expanded) "Collapse $title" else "Expand $title",
+            )
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 8.dp).weight(1f),
+            )
+            // Without this an edit inside a collapsed group is invisible while the save button
+            // still counts it, which reads as the app inventing changes.
+            if (dirty > 0) {
+                Badge { Text("$dirty") }
+            } else {
+                Text(
+                    "$count",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (expanded && note != null) {
+            Text(
+                note,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp, start = 32.dp),
+            )
+        }
+        HorizontalDivider(Modifier.padding(top = 8.dp))
     }
 }
 
