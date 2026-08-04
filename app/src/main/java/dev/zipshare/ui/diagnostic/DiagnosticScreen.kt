@@ -39,6 +39,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.zipshare.BuildConfig
 import dev.zipshare.data.net.VersionResponse
 import dev.zipshare.ui.settings.SettingsViewModel
+import dev.zipshare.ui.FocusTarget
+import dev.zipshare.ui.search.SearchAction
 import dev.zipshare.ui.shareFile
 
 /**
@@ -50,7 +52,12 @@ import dev.zipshare.ui.shareFile
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DiagnosticScreen(onMenu: () -> Unit, vm: SettingsViewModel = hiltViewModel()) {
+fun DiagnosticScreen(
+    onMenu: () -> Unit,
+    /** Row id from search: scroll to it and flash it on arrival. */
+    focus: String? = null,
+    vm: SettingsViewModel = hiltViewModel(),
+) {
     val message by vm.message.collectAsStateWithLifecycle()
     val version by vm.serverVersion.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -72,6 +79,9 @@ fun DiagnosticScreen(onMenu: () -> Unit, vm: SettingsViewModel = hiltViewModel()
                 navigationIcon = {
                     IconButton(onClick = onMenu) { Icon(Icons.Filled.Menu, "Menu") }
                 },
+                // These two use a plain TopAppBar rather than ShellTopBar, so search is added
+                // here explicitly to keep it in the same slot on every screen.
+                actions = { SearchAction() },
             )
         },
     ) { padding ->
@@ -80,7 +90,7 @@ fun DiagnosticScreen(onMenu: () -> Unit, vm: SettingsViewModel = hiltViewModel()
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("History", style = MaterialTheme.typography.titleMedium)
+            FocusTarget("history", focus) { Text("History", style = MaterialTheme.typography.titleMedium) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     // Writing to cache and stopping there left the export unreachable; hand it
@@ -91,7 +101,7 @@ fun DiagnosticScreen(onMenu: () -> Unit, vm: SettingsViewModel = hiltViewModel()
             }
 
             HorizontalDivider()
-            Text("Logs", style = MaterialTheme.typography.titleMedium)
+            FocusTarget("logs", focus) { Text("Logs", style = MaterialTheme.typography.titleMedium) }
             Text(
                 "The app keeps an activity log (uploads, errors, server switches - never tokens " +
                     "or passwords). It is stored encrypted and can only be read by exporting it " +
@@ -119,7 +129,7 @@ fun DiagnosticScreen(onMenu: () -> Unit, vm: SettingsViewModel = hiltViewModel()
             }
 
             HorizontalDivider()
-            Text("Backup and Import", style = MaterialTheme.typography.titleMedium)
+            FocusTarget("backup", focus) { Text("Backup and Import", style = MaterialTheme.typography.titleMedium) }
             Text(
                 "Export writes every setting from the Settings page - security, dashboard, " +
                     "appearance, uploads, notifications and upload defaults - to a JSON file. " +
@@ -142,7 +152,7 @@ fun DiagnosticScreen(onMenu: () -> Unit, vm: SettingsViewModel = hiltViewModel()
             }
 
             HorizontalDivider()
-            ServerVersionSection(version)
+            FocusTarget("version", focus) { ServerVersionSection(version) }
 
             Spacer(Modifier.height(8.dp))
             Text(

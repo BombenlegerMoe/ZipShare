@@ -63,6 +63,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.zipshare.data.net.ZSession
 import dev.zipshare.data.net.ZView
+import dev.zipshare.ui.FocusTarget
 import dev.zipshare.ui.rememberDataUrlBitmap
 import dev.zipshare.ui.shell.AccountViewModel
 import kotlinx.coroutines.launch
@@ -127,7 +128,12 @@ private const val AVATAR_MAX_BYTES = 512_000
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AccountSettingsScreen(onBack: () -> Unit, vm: AccountViewModel = hiltViewModel()) {
+fun AccountSettingsScreen(
+    onBack: () -> Unit,
+    /** Row id from search: scroll to it and flash it on arrival. */
+    focus: String? = null,
+    vm: AccountViewModel = hiltViewModel(),
+) {
     // No FLAG_SECURE here, deliberately. It guards screens that render a credential in the clear
     // - the token in the server editor, the TOTP secret during enrollment. Every password field
     // on this screen is masked, so a screenshot would capture nothing worth hiding.
@@ -180,7 +186,7 @@ fun AccountSettingsScreen(onBack: () -> Unit, vm: AccountViewModel = hiltViewMod
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // --- avatar ---
-            Text("Avatar", style = MaterialTheme.typography.titleMedium)
+            FocusTarget("avatar", focus) { Text("Avatar", style = MaterialTheme.typography.titleMedium) }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 BigAvatar(state.user?.avatar, state.user?.username)
                 Column(Modifier.padding(start = 16.dp)) {
@@ -213,16 +219,20 @@ fun AccountSettingsScreen(onBack: () -> Unit, vm: AccountViewModel = hiltViewMod
             }
 
             HorizontalDivider()
-            UsernameSection(current = state.user?.username, busy = state.busy, onSave = vm::changeUsername)
+            FocusTarget("username", focus) {
+                UsernameSection(current = state.user?.username, busy = state.busy, onSave = vm::changeUsername)
+            }
 
             HorizontalDivider()
-            PasswordSection(busy = state.busy, onSave = vm::changePassword)
+            FocusTarget("password", focus) { PasswordSection(busy = state.busy, onSave = vm::changePassword) }
 
             HorizontalDivider()
-            SessionsSection(state.sessions?.current, state.sessions?.other.orEmpty(), state.sessionsError, vm)
+            FocusTarget("sessions", focus) {
+                SessionsSection(state.sessions?.current, state.sessions?.other.orEmpty(), state.sessionsError, vm)
+            }
 
             HorizontalDivider()
-            ViewSection(state.user?.view, busy = state.busy, onSave = vm::saveView)
+            FocusTarget("viewing", focus) { ViewSection(state.user?.view, busy = state.busy, onSave = vm::saveView) }
         }
     }
 }

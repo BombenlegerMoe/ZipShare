@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.zipshare.data.model.LinkFormat
 import dev.zipshare.data.model.Profile
+import dev.zipshare.ui.search.SearchAction
 
 /** Mirrors the Zipline web sidebar. Admin entries are hidden for non-admin roles, as on the web. */
 enum class NavItem(
@@ -93,6 +94,18 @@ val LocalSignedInUser = compositionLocalOf<String?> { null }
  * view model at all to thread it through.
  */
 val LocalLinkFormat = compositionLocalOf { LinkFormat.PLAIN }
+
+/**
+ * Navigation, for the search action that now sits in every [ShellTopBar].
+ *
+ * Same reasoning again: search is reachable from eleven screens, and threading a nav callback
+ * through every one of them - most of which never navigate anywhere themselves - is a parameter
+ * on eleven signatures to serve one button.
+ */
+val LocalNavigate = compositionLocalOf<(String) -> Unit> { {} }
+
+/** Whether the signed-in account is an admin, so search can hide destinations it cannot open. */
+val LocalIsAdmin = compositionLocalOf { false }
 
 @Composable
 fun ZiplineDrawerSheet(
@@ -219,6 +232,10 @@ fun ShellTopBar(
         actions = {
             actions()
             account?.invoke()
+            // Last, so it lands in the same place on every screen. Placing it before the avatar
+            // put it 100px further left on Home than everywhere else, because Home is the only
+            // screen with an avatar - which defeats the point of having it in a fixed spot.
+            SearchAction()
         },
     )
 }

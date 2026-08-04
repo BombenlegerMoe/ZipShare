@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import dev.zipshare.data.model.CompressionType
 import dev.zipshare.data.model.NameFormat
 import dev.zipshare.data.model.UploadOptions
+import dev.zipshare.ui.FocusTarget
 import dev.zipshare.data.net.ZFolder
 
 /**
@@ -37,9 +38,11 @@ fun UploadOptionsForm(
     modifier: Modifier = Modifier,
     /** Hidden when several files are selected: one name cannot apply to all of them. */
     showFilenameField: Boolean = true,
+    /** Row id from search; these fields are reachable from the app-wide search on Home. */
+    focus: String? = null,
 ) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Expires", style = MaterialTheme.typography.labelLarge)
+        FocusTarget("expiry", focus, spacing = 12.dp) { Text("Expires", style = MaterialTheme.typography.labelLarge) }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             UploadOptions.EXPIRY_PRESETS.forEach { preset ->
                 FilterChip(
@@ -54,7 +57,7 @@ fun UploadOptionsForm(
             }
         }
 
-        Text("Name format", style = MaterialTheme.typography.labelLarge)
+        FocusTarget("name_format", focus, spacing = 12.dp) { Text("Name format", style = MaterialTheme.typography.labelLarge) }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             NameFormat.entries.forEach { format ->
                 FilterChip(
@@ -68,7 +71,7 @@ fun UploadOptionsForm(
         }
 
         if (folders.isNotEmpty()) {
-            Text("Folder", style = MaterialTheme.typography.labelLarge)
+            FocusTarget("folder", focus, spacing = 12.dp) { Text("Folder", style = MaterialTheme.typography.labelLarge) }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 folders.forEach { folder ->
                     FilterChip(
@@ -86,7 +89,7 @@ fun UploadOptionsForm(
             }
         }
 
-        Text("Image compression", style = MaterialTheme.typography.labelLarge)
+        FocusTarget("compression", focus, spacing = 12.dp) { Text("Image compression", style = MaterialTheme.typography.labelLarge) }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CompressionType.entries.forEach { type ->
                 FilterChip(
@@ -147,25 +150,29 @@ fun UploadOptionsForm(
             )
         }
 
-        OutlinedTextField(
-            value = options.password.orEmpty(),
-            onValueChange = { onChange(options.copy(password = it.ifBlank { null })) },
-            label = { Text("Password") },
-            visualTransformation = PasswordVisualTransformation(),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        FocusTarget("upload_password", focus, spacing = 12.dp) {
+            OutlinedTextField(
+                value = options.password.orEmpty(),
+                onValueChange = { onChange(options.copy(password = it.ifBlank { null })) },
+                label = { Text("Password") },
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
 
-        OutlinedTextField(
-            value = options.maxViews?.toString().orEmpty(),
-            onValueChange = { v ->
-                onChange(options.copy(maxViews = v.toIntOrNull()?.coerceAtLeast(0)))
-            },
-            label = { Text("Max views") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        FocusTarget("max_views", focus, spacing = 12.dp) {
+            OutlinedTextField(
+                value = options.maxViews?.toString().orEmpty(),
+                onValueChange = { v ->
+                    onChange(options.copy(maxViews = v.toIntOrNull()?.coerceAtLeast(0)))
+                },
+                label = { Text("Max views") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
 
         if (showFilenameField) {
             OutlinedTextField(
@@ -185,20 +192,24 @@ fun UploadOptionsForm(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        OutlinedTextField(
-            value = options.domain.orEmpty(),
-            onValueChange = { onChange(options.copy(domain = it.ifBlank { null })) },
-            label = { Text("Return domain(s), comma separated") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Switch(
-                checked = options.originalName,
-                onCheckedChange = { onChange(options.copy(originalName = it)) },
+        FocusTarget("domain", focus, spacing = 12.dp) {
+            OutlinedTextField(
+                value = options.domain.orEmpty(),
+                onValueChange = { onChange(options.copy(domain = it.ifBlank { null })) },
+                label = { Text("Return domain(s), comma separated") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
             )
-            Text("Keep original name", Modifier.padding(start = 8.dp))
+        }
+
+        FocusTarget("original_name", focus, spacing = 12.dp) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Switch(
+                    checked = options.originalName,
+                    onCheckedChange = { onChange(options.copy(originalName = it)) },
+                )
+                Text("Keep original name", Modifier.padding(start = 8.dp))
+            }
         }
     }
 }
