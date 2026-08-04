@@ -2,7 +2,7 @@
 agp = "9.3.1"
 # Kotlin is held at 2.3.10 to match KSP, which has no release for 2.4.x yet - Hilt and Room both
 # run through KSP, so Kotlin cannot move ahead of it. Raise both together when KSP 2.4 ships.
-kotlin = "2.3.10"
+kotlin = "2.4.10"
 ksp = "2.3.10"
 hilt = "2.60.1"
 hiltExt = "1.2.0"
