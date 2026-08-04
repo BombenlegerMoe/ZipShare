@@ -40,6 +40,7 @@ import dev.zipshare.BuildConfig
 import dev.zipshare.data.net.VersionResponse
 import dev.zipshare.ui.settings.SettingsViewModel
 import dev.zipshare.ui.FocusTarget
+import dev.zipshare.ui.search.SearchAction
 import dev.zipshare.ui.shareFile
 
 /**
@@ -78,6 +79,9 @@ fun DiagnosticScreen(
                 navigationIcon = {
                     IconButton(onClick = onMenu) { Icon(Icons.Filled.Menu, "Menu") }
                 },
+                // These two use a plain TopAppBar rather than ShellTopBar, so search is added
+                // here explicitly to keep it in the same slot on every screen.
+                actions = { SearchAction() },
             )
         },
     ) { padding ->

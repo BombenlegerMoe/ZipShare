@@ -36,9 +36,12 @@ import dev.zipshare.ui.servers.ServerEditScreen
 import dev.zipshare.ui.servers.ServersScreen
 import dev.zipshare.ui.servers.ServersViewModel
 import dev.zipshare.ui.settings.SettingsScreen
+import dev.zipshare.ui.shell.LocalIsAdmin
 import dev.zipshare.ui.shell.LocalLinkFormat
+import dev.zipshare.ui.shell.LocalNavigate
 import dev.zipshare.ui.shell.LocalSignedInUser
 import dev.zipshare.ui.shell.NavItem
+import dev.zipshare.ui.shell.isAdministrator
 import dev.zipshare.ui.shell.ZiplineDrawerSheet
 import dev.zipshare.ui.upload.UploadTextScreen
 import dev.zipshare.ui.viewer.ImageViewerScreen
@@ -151,6 +154,8 @@ fun AppNav(startAction: String? = null) {
     CompositionLocalProvider(
         LocalSignedInUser provides shell.me?.let { "${it.username} - ${it.role}" },
         LocalLinkFormat provides linkFormat,
+        LocalNavigate provides ::go,
+        LocalIsAdmin provides isAdministrator(shell.me?.role),
     ) {
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -174,7 +179,6 @@ fun AppNav(startAction: String? = null) {
                     onSettings = { go(Routes.SETTINGS) },
                     onServerSettings = { go(Routes.ADMIN_SETTINGS) },
                     onAccountSettings = { nav.navigate(Routes.ACCOUNT) },
-                    onNavigate = ::go,
                 )
             }
             // `focus` is optional: the drawer navigates to the bare route, search appends the id of

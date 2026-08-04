@@ -50,6 +50,7 @@ import dev.zipshare.data.model.LinkFormat
 import dev.zipshare.data.model.UploadOptions
 import dev.zipshare.security.Biometrics
 import dev.zipshare.ui.FocusTarget
+import dev.zipshare.ui.search.SearchAction
 import dev.zipshare.ui.shareFile
 import dev.zipshare.ui.upload.UploadOptionsForm
 import java.io.File
@@ -102,6 +103,9 @@ fun SettingsScreen(
                 navigationIcon = {
                     IconButton(onClick = onMenu) { Icon(Icons.Filled.Menu, "Menu") }
                 },
+                // These two use a plain TopAppBar rather than ShellTopBar, so search is added
+                // here explicitly to keep it in the same slot on every screen.
+                actions = { SearchAction() },
             )
         },
     ) { padding ->
@@ -311,6 +315,7 @@ fun SettingsScreen(
                 // A fixed filename makes no sense as a default for every upload; it is offered
                 // per-upload in the sheet instead.
                 showFilenameField = false,
+                focus = focus,
             )
             OutlinedButton(
                 onClick = {
