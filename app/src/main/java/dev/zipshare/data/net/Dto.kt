@@ -240,6 +240,9 @@ data class ZUrl(
     val createdAt: String? = null,
 )
 
+/** Zipline serves short links from /go/<code>; the api returns the code, never the full link. */
+fun ZUrl.shortLink(baseUrl: String): String = "${baseUrl.trimEnd('/')}/go/${vanity ?: code}"
+
 /** GET /api/users - admin only, returns the limited user shape. */
 @Serializable
 data class ZLimitedUser(
