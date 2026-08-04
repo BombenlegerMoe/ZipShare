@@ -21,7 +21,22 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okio.BufferedSource
 import javax.inject.Inject
+
+/**
+ * Reads at most [maxBytes] from [source], or returns null when the source holds more than that.
+ *
+ * `Content-Length` cannot be used for this decision: it is -1 whenever the response is chunked,
+ * which is the normal case for a dynamically served file, and `-1 > maxBytes` is false - so a size
+ * check on it lets exactly the oversized responses through that it exists to stop. Asking the
+ * source for one byte more than the limit answers the question from what actually arrived, and
+ * leaves the rest of an oversized body unread on the socket.
+ */
+internal fun readCapped(source: BufferedSource, maxBytes: Long): String? {
+    source.request(maxBytes + 1)
+    return if (source.buffer.size > maxBytes) null else source.buffer.readUtf8()
+}
 
 data class TextViewerState(
     val loading: Boolean = true,
@@ -67,9 +82,7 @@ class TextViewerViewModel @Inject constructor(
                     .use { response ->
                         if (!response.isSuccessful) error("HTTP ${response.code}")
                         val body = response.body ?: error("Empty response")
-                        // Guard against opening a huge file into a text field; the viewer is for
-                        // snippets and configs, not multi-megabyte logs.
-                        if ((body.contentLength()) > MAX_BYTES) null else body.string()
+                        readCapped(body.source(), MAX_BYTES)
                     }
             }
         }

@@ -14,6 +14,8 @@ import dev.zipshare.data.net.PinFetcher
 import dev.zipshare.data.net.ZiplineClients
 import dev.zipshare.data.net.ZiplineException
 import dev.zipshare.data.net.unwrap
+import dev.zipshare.data.prefs.SecureStore
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -51,6 +53,7 @@ class ServersViewModel @Inject constructor(
     private val repo: ProfileRepository,
     private val clients: ZiplineClients,
     private val pinFetcher: PinFetcher,
+    private val secure: SecureStore,
 ) : ViewModel() {
 
     val profiles: StateFlow<List<Profile>> = repo.profiles
@@ -58,6 +61,32 @@ class ServersViewModel @Inject constructor(
 
     private val _edit = MutableStateFlow(EditState())
     val edit: StateFlow<EditState> = _edit
+
+    /**
+     * Set when the device's keystore was reset and the encrypted store had to be discarded, taking
+     * every saved server with it - so the user is told why their servers are gone instead of
+     * meeting an empty list with no explanation.
+     *
+     * Read off the main thread: the flag lives in its own SharedPreferences, and touching that
+     * during ViewModel construction would be disk I/O on the main thread. The banner appearing a
+     * frame late costs nothing.
+     */
+    private val _notice = MutableStateFlow<String?>(null)
+    val notice: StateFlow<String?> = _notice
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (secure.consumeKeysetReset()) {
+                _notice.value =
+                    "This device's secure keystore was reset, so saved servers had to be cleared. " +
+                        "Sign in again to restore them."
+            }
+        }
+    }
+
+    fun clearNotice() {
+        _notice.value = null
+    }
 
     fun load(profileId: String?) {
         viewModelScope.launch {

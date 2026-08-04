@@ -98,18 +98,27 @@ object UploadInput {
      * Share-sheet grants die with the sending task and photo-picker grants die with the process,
      * so anything not persistable is streamed into cache first — 8 KiB at a time, never a ByteArray.
      *
+     * [forSeeking] forces a staged copy even when the grant would survive. A chunked upload opens
+     * the source once per chunk and skips to that chunk's offset; on a `content://` provider backed
+     * by a pipe, `skip()` cannot seek and falls back to *reading* the skipped bytes, so chunk N
+     * re-reads everything before it and the upload costs O(n²). A staged copy is a plain `file://`,
+     * whose skip is a real seek, which makes each chunk cost its own size and nothing more.
+     *
      * Returns the uri to upload from and whether it is a staged copy the worker must delete.
      */
-    fun stageIfNeeded(context: Context, uri: Uri): Pair<Uri, Boolean> {
+    fun stageIfNeeded(context: Context, uri: Uri, forSeeking: Boolean = false): Pair<Uri, Boolean> {
+        // Already seekable, and not ours to delete.
         if (uri.scheme == "file") return uri to false
 
-        val persisted = runCatching {
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION,
-            )
-        }.isSuccess
-        if (persisted) return uri to false
+        if (!forSeeking) {
+            val persisted = runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }.isSuccess
+            if (persisted) return uri to false
+        }
 
         val dir = File(context.cacheDir, "staged").apply { mkdirs() }
         val safeName = meta(context, uri).name.take(80).replace(Regex("[^A-Za-z0-9._-]"), "_")

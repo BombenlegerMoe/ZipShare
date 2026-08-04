@@ -1,5 +1,8 @@
 package dev.zipshare.ui.account
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -45,6 +48,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +65,58 @@ import dev.zipshare.data.net.ZSession
 import dev.zipshare.data.net.ZView
 import dev.zipshare.ui.rememberDataUrlBitmap
 import dev.zipshare.ui.shell.AccountViewModel
+import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
+
+/**
+ * Decodes the picked image at no more than [AVATAR_MAX_PX] on its longest side and re-encodes it
+ * small enough to travel as a data URL. Returns null when the uri holds nothing decodable.
+ *
+ * Zipline takes the avatar as a data URL on `PATCH /api/user`, so base64 is the contract and
+ * cannot be swapped for multipart - but it is applied to the downscaled bytes rather than the
+ * original. Reading a 12 MP photo whole and then expanding it by a third on encoding is a large
+ * transient allocation for what ends up a thumbnail, and was the most likely cause of the failure
+ * that this screen used to discard in silence.
+ *
+ * PNG is kept for images with alpha; flattening a transparent avatar to JPEG would paint the
+ * background black.
+ */
+private fun avatarDataUrl(context: Context, uri: Uri): String? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        ?: return null
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+    var sample = 1
+    while (maxOf(bounds.outWidth, bounds.outHeight) / sample > AVATAR_MAX_PX) sample *= 2
+
+    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+    val bitmap = context.contentResolver.openInputStream(uri)?.use {
+        BitmapFactory.decodeStream(it, null, options)
+    } ?: return null
+
+    return try {
+        val alpha = bitmap.hasAlpha()
+        val format = if (alpha) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG
+        var quality = 90
+        var encoded: ByteArray
+        do {
+            val out = ByteArrayOutputStream()
+            bitmap.compress(format, quality, out)
+            encoded = out.toByteArray()
+            quality -= 15
+            // Quality is ignored for PNG, so re-compressing it would loop without shrinking.
+        } while (!alpha && encoded.size > AVATAR_MAX_BYTES && quality >= 30)
+
+        val mime = if (alpha) "image/png" else "image/jpeg"
+        "data:$mime;base64," + Base64.encodeToString(encoded, Base64.NO_WRAP)
+    } finally {
+        bitmap.recycle()
+    }
+}
+
+private const val AVATAR_MAX_PX = 512
+private const val AVATAR_MAX_BYTES = 512_000
 
 /**
  * Everything Zipline's web `/dashboard/settings` page offers for your own account: avatar,
@@ -78,6 +134,7 @@ fun AccountSettingsScreen(onBack: () -> Unit, vm: AccountViewModel = hiltViewMod
     val state by vm.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) { vm.load(); vm.loadSessions() }
     LaunchedEffect(state.message) {
@@ -90,11 +147,17 @@ fun AccountSettingsScreen(onBack: () -> Unit, vm: AccountViewModel = hiltViewMod
         // Zipline stores the avatar as a data URL, so the bytes are read here rather than
         // uploaded as multipart. The photo picker grants read access without any permission.
         uri?.let {
-            runCatching {
-                val type = context.contentResolver.getType(it) ?: "image/png"
-                val bytes = context.contentResolver.openInputStream(it)!!.use { s -> s.readBytes() }
-                "data:$type;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
-            }.onSuccess(vm::setAvatar)
+            runCatching { avatarDataUrl(context, it) }
+                .onSuccess { dataUrl ->
+                    if (dataUrl == null) {
+                        scope.launch { snackbar.showSnackbar("That file could not be read as an image.") }
+                    } else {
+                        vm.setAvatar(dataUrl)
+                    }
+                }
+                // Previously absent, so a failure here did nothing at all: the user picked an
+                // image, no avatar appeared, and no error explained why.
+                .onFailure { scope.launch { snackbar.showSnackbar("Could not read that image.") } }
         }
     }
 
