@@ -1,0 +1,7 @@
+- Admin server settings are grouped into collapsible sections instead of one long list
+- Text files that are too large to view are now caught instead of loading into memory
+- Picking an avatar that cannot be read now says so, and images are downscaled before upload
+- If the device keystore resets and clears saved servers, the app explains why
+- Upload passwords are cleared when an upload is cancelled or interrupted
+- Large uploads from other apps no longer slow down as they progress
+- Updated to newer build tools and libraries
