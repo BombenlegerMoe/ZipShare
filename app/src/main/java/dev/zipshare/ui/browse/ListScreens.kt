@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.zipshare.data.net.shortLink
 import dev.zipshare.ui.shell.EmptyOrError
 import dev.zipshare.ui.shell.PullRefresh
 import dev.zipshare.ui.shell.ShellTopBar
@@ -196,7 +197,7 @@ fun UrlsScreen(onMenu: () -> Unit, vm: BrowseViewModel = hiltViewModel()) {
             } else {
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 4.dp)) {
                     items(state.urls, key = { it.id }) { url ->
-                        val short = "$base/go/${url.vanity ?: url.code}"
+                        val short = url.shortLink(base)
                         ListItem(
                             headlineContent = {
                                 Text(url.vanity ?: url.code, maxLines = 1, overflow = TextOverflow.Ellipsis)

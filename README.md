@@ -146,6 +146,9 @@ lifted just long enough to screenshot them, and the secret shown is the mock's f
 ### Uploads
 
 - Share sheet (`ACTION_SEND` / `ACTION_SEND_MULTIPLE`, any MIME type), photo picker and file picker
+- Sharing a plain link shortens it instead of uploading it, and copies the short link
+- Drag files onto Home from another app in split screen
+- Optional on-device re-encode to WebP or JPEG before upload, so the phone sends fewer bytes
 - Launcher shortcuts (long-press the icon) and a Quick Settings tile jump straight into an upload
 - Large files switch automatically to Zipline's resumable `/api/upload/partial` endpoint above a
   configurable threshold
