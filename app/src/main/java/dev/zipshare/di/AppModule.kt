@@ -30,7 +30,7 @@ object AppModule {
             // This table is a local mirror of uploads the server already holds, so on a schema
             // change losing it is recoverable - crashing on launch is not. Schemas are exported,
             // so add a real Migration when the shape changes and drop this.
-            .fallbackToDestructiveMigration()
+            .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
 
     @Provides
