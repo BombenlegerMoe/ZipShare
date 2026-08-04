@@ -48,7 +48,10 @@ object UploadInput {
             } ?: 0L
         }
 
-        val resolved = name
+        // getType() answers null for a file:// uri, so fall back to the path for the extension
+        // lookup too - not just for the display name below. Without this a shared file:// image
+        // arrives as application/octet-stream and skips anything that keys off the real type.
+        val resolved = name ?: uri.lastPathSegment
         val mime = context.contentResolver.getType(uri)
             ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(
                 resolved?.substringAfterLast('.', "")?.lowercase().orEmpty(),

@@ -106,6 +106,12 @@ class SettingsViewModel @Inject constructor(
 
     fun setChunkSize(mib: Int) = edit { it.copy(chunkSizeMiB = mib) }
 
+    fun setDeviceCompression(on: Boolean) = edit { it.copy(deviceCompression = on) }
+
+    fun setDeviceCompressionFormat(format: String) = edit { it.copy(deviceCompressionFormat = format) }
+
+    fun setDeviceCompressionQuality(q: Int) = edit { it.copy(deviceCompressionQuality = q) }
+
     fun setDefaults(options: UploadOptions) = edit { it.copy(defaultOptions = options) }
 
     fun setSkipUploadSheet(skip: Boolean) = edit { it.copy(skipUploadSheet = skip) }
