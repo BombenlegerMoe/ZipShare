@@ -173,6 +173,7 @@ fun AppNav(startAction: String? = null) {
                     onSettings = { go(Routes.SETTINGS) },
                     onServerSettings = { go(Routes.ADMIN_SETTINGS) },
                     onAccountSettings = { nav.navigate(Routes.ACCOUNT) },
+                    onNavigate = ::go,
                 )
             }
             composable(Routes.ACCOUNT) {

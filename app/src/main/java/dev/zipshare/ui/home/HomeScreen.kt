@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.InsertPhoto
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.SdStorage
@@ -69,6 +70,7 @@ import dev.zipshare.data.net.shareUrl
 import dev.zipshare.data.net.viewerUrl
 import dev.zipshare.ui.browse.BrowseViewModel
 import dev.zipshare.ui.browse.FileDetailSheet
+import dev.zipshare.ui.search.AppSearchDialog
 import dev.zipshare.ui.shell.AccountMenu
 import dev.zipshare.ui.shell.LocalLinkFormat
 import dev.zipshare.ui.shell.PullRefresh
@@ -101,6 +103,8 @@ fun HomeScreen(
     onSettings: () -> Unit = {},
     onServerSettings: () -> Unit = {},
     onAccountSettings: () -> Unit = {},
+    /** Any route in the shell, so search can jump straight to what it found. */
+    onNavigate: (String) -> Unit = {},
     vm: HomeViewModel = hiltViewModel(),
     // The file actions all live on BrowseViewModel already; reusing it here is what keeps the
     // sheet identical to the one on the Files page instead of a second copy that drifts.
@@ -115,6 +119,7 @@ fun HomeScreen(
     val recentsScroll = rememberLazyListState()
 
     var confirmClearHistory by remember { mutableStateOf(false) }
+    var searchOpen by remember { mutableStateOf(false) }
     var detailFor by remember { mutableStateOf<ZFile?>(null) }
 
     // The dashboard reloads every time it becomes visible - returning from an upload, a file
@@ -218,6 +223,11 @@ fun HomeScreen(
                 activeLabel = state.active?.label,
                 onMenu = onMenu,
                 onSelectProfile = vm::selectProfile,
+                actions = {
+                    IconButton(onClick = { searchOpen = true }) {
+                        Icon(Icons.Filled.Search, "Search")
+                    }
+                },
                 account = {
                     AccountMenu(
                         isAdmin = state.user?.role in setOf("ADMIN", "SUPERADMIN"),
@@ -470,6 +480,14 @@ fun HomeScreen(
             }
         }
         }
+    }
+
+    if (searchOpen) {
+        AppSearchDialog(
+            isAdmin = state.user?.role in setOf("ADMIN", "SUPERADMIN"),
+            onDismiss = { searchOpen = false },
+            onNavigate = onNavigate,
+        )
     }
 
     if (confirmClearHistory) {

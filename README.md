@@ -26,7 +26,7 @@ encrypted storage and no telemetry of any kind.
 |:---:|:---:|:---:|
 | <img src="docs/screenshots/03-dashboard.png" width="230" alt="Dashboard"> | <img src="docs/screenshots/09-files-grid.png" width="230" alt="File grid"> | <img src="docs/screenshots/06-totp-setup.png" width="230" alt="TOTP enrollment with QR and authenticator hand-off"> |
 
-<sub><b>33 more screenshots</b> — open a section below.</sub>
+<sub><b>34 more screenshots</b> — open a section below.</sub>
 
 <details>
 <summary><b>Signing in &amp; your account</b> — sign-in, invite signup, servers, account menu, avatar, sessions, two-factor</summary>
@@ -47,9 +47,9 @@ encrypted storage and no telemetry of any kind.
 |:---:|:---:|:---:|
 | <img src="docs/screenshots/32-diagnostic.png" width="230" alt="Diagnostic page: history, logs, settings backup and import"> | <img src="docs/screenshots/33-server-version.png" width="230" alt="Zipline server version panel"> | <img src="docs/screenshots/34-sharing.png" width="230" alt="Link format: plain, markdown or view page"> |
 
-| Servers | | |
+| Servers | Search | |
 |:---:|:---:|:---:|
-| <img src="docs/screenshots/36-servers.png" width="230" alt="Server list with three profiles, each with its own URL and settings"> | | |
+| <img src="docs/screenshots/36-servers.png" width="230" alt="Server list with three profiles, each with its own URL and settings"> | <img src="docs/screenshots/36-search.png" width="230" alt="Searching every screen and setting from the dashboard"> | |
 
 </details>
 
@@ -209,6 +209,16 @@ generated from the live API response, server actions (clear temp, clear zero-byt
 sizes, generate thumbnails) each behind a confirmation, full user management (create, rename, set
 a password, change role and quota, delete with or without their content) and invite management
 (create and revoke).
+
+### Search
+
+The magnifier next to the avatar on the dashboard searches every screen and every setting at once.
+Results say where each one lives — *Settings > Uploads*, *Account settings* — and tapping one takes
+you there, so a setting you half-remember does not mean hunting through pages.
+
+It matches what you would actually type rather than only the exact label: "dark" finds **Theme**,
+"2fa" finds **Two-factor authentication**, "markdown" finds the **Sharing** link format. Admin-only
+destinations are hidden unless your account is one.
 
 ### Multi-server
 
