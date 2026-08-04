@@ -26,6 +26,13 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import android.net.Uri
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,6 +49,76 @@ import dev.zipshare.ui.settings.SettingsViewModel
 import dev.zipshare.ui.FocusTarget
 import dev.zipshare.ui.search.SearchAction
 import dev.zipshare.ui.shareFile
+
+private enum class PasswordPurpose { EXPORT, IMPORT }
+
+/**
+ * Asks for the backup password.
+ *
+ * Export asks twice, import once. A typo when exporting produces a file nobody can ever open -
+ * there is no key escrow and no recovery - whereas a typo when importing just fails and can be
+ * retried, so making the user type it twice there would be friction for nothing.
+ */
+@Composable
+private fun PasswordDialog(
+    purpose: PasswordPurpose,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var password by remember { mutableStateOf("") }
+    var repeat by remember { mutableStateOf("") }
+    val exporting = purpose == PasswordPurpose.EXPORT
+    val mismatch = exporting && repeat.isNotEmpty() && repeat != password
+    val ok = password.length >= MIN_BACKUP_PASSWORD && (!exporting || password == repeat)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (exporting) "Password for the backup" else "Password for this backup") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (exporting) {
+                    Text(
+                        "There is no way to recover this file without the password. Keep it " +
+                            "somewhere you will still have it when you set up the new device.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Password") },
+                    supportingText = {
+                        if (password.isNotEmpty() && password.length < MIN_BACKUP_PASSWORD) {
+                            Text("At least $MIN_BACKUP_PASSWORD characters.")
+                        }
+                    },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true,
+                )
+                if (exporting) {
+                    OutlinedTextField(
+                        value = repeat,
+                        onValueChange = { repeat = it },
+                        label = { Text("Repeat password") },
+                        isError = mismatch,
+                        supportingText = { if (mismatch) Text("The passwords do not match.") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = ok, onClick = { onConfirm(password) }) {
+                Text(if (exporting) "Export" else "Import")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+private const val MIN_BACKUP_PASSWORD = 8
 
 /**
  * Everything you reach for when something is wrong or you are filing a bug: the on-device logs,
@@ -70,6 +147,19 @@ fun DiagnosticScreen(
     val pickSettings = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri -> uri?.let(vm::importSettings) }
+
+    // The password is asked for after the file is chosen, so a mistyped password does not mean
+    // picking the file again.
+    var askPassword by remember { mutableStateOf<PasswordPurpose?>(null) }
+    var pendingImport by remember { mutableStateOf<Uri?>(null) }
+    val pickProfiles = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        uri?.let {
+            pendingImport = it
+            askPassword = PasswordPurpose.IMPORT
+        }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
@@ -149,6 +239,44 @@ fun DiagnosticScreen(
                     // select is worse than one the parser rejects with a clear message.
                     onClick = { pickSettings.launch(arrayOf("*/*")) },
                 ) { Text("Import settings") }
+            }
+
+            HorizontalDivider()
+            FocusTarget("servers_backup", focus) {
+                Text("Server backup", style = MaterialTheme.typography.titleMedium)
+            }
+            Text(
+                "Exports every server - address, API token and certificate pin - encrypted with a " +
+                    "password you choose. This is what moves your setup to a new device. The file " +
+                    "is useless without the password, and the password is not stored anywhere, so " +
+                    "there is no way to recover the backup if you forget it.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { askPassword = PasswordPurpose.EXPORT }) { Text("Export servers") }
+                OutlinedButton(onClick = { pickProfiles.launch(arrayOf("*/*")) }) {
+                    Text("Import servers")
+                }
+            }
+
+            askPassword?.let { purpose ->
+                PasswordDialog(
+                    purpose = purpose,
+                    onDismiss = { askPassword = null; pendingImport = null },
+                    onConfirm = { pw ->
+                        when (purpose) {
+                            PasswordPurpose.EXPORT ->
+                                vm.exportProfiles(pw) { file ->
+                                    shareFile(context, file, "application/json")
+                                }
+                            PasswordPurpose.IMPORT ->
+                                pendingImport?.let { vm.importProfiles(it, pw) }
+                        }
+                        askPassword = null
+                        pendingImport = null
+                    },
+                )
             }
 
             HorizontalDivider()
