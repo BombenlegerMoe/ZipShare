@@ -61,9 +61,8 @@ import dev.zipshare.ui.Routes
 /**
  * One thing you can search for: a screen, or a setting that lives on one.
  *
- * [where] is shown under the title rather than being decoration - a setting cannot be deep-linked
- * to its own row, so search takes you to the screen holding it and this is what tells you where to
- * look once you arrive. Claiming otherwise would be worse than saying nothing.
+ * [where] is shown under the title so the result is readable on its own - "Sharing link format"
+ * means little until you see it sits under Settings > Sharing.
  */
 data class SearchEntry(
     val title: String,
@@ -73,7 +72,16 @@ data class SearchEntry(
     /** Synonyms and the words people actually type; never shown, only matched. */
     val keywords: List<String> = emptyList(),
     val adminOnly: Boolean = false,
+    /**
+     * Id of the row to scroll to and flash on arrival, matched against a [dev.zipshare.ui.FocusTarget].
+     * Null for entries that are a whole screen, where landing at the top is already the answer.
+     */
+    val anchor: String? = null,
 )
+
+/** Route plus the anchor, so one tap lands on the row rather than the page holding it. */
+val SearchEntry.destination: String
+    get() = if (anchor == null) route else "$route?focus=$anchor"
 
 /**
  * Everything reachable in the app, flattened.
@@ -98,27 +106,27 @@ val appSearchIndex: List<SearchEntry> = listOf(
     SearchEntry("Server settings", "Administrator", Routes.ADMIN_SETTINGS, Icons.Filled.Tune, listOf("instance settings", "core", "chunks", "discord", "oauth", "ratelimit", "tasks", "website", "features"), adminOnly = true),
 
     // --- account ---
-    SearchEntry("Avatar", "Account settings", Routes.ACCOUNT, Icons.Filled.AccountCircle, listOf("profile picture", "photo")),
-    SearchEntry("Change username", "Account settings", Routes.ACCOUNT, Icons.Filled.AccountCircle, listOf("rename", "name")),
-    SearchEntry("Change password", "Account settings", Routes.ACCOUNT, Icons.Filled.AccountCircle, listOf("credentials")),
-    SearchEntry("Logged-in devices", "Account settings", Routes.ACCOUNT, Icons.Filled.AccountCircle, listOf("sessions", "sign out others", "revoke")),
-    SearchEntry("Viewing files", "Account settings", Routes.ACCOUNT, Icons.Filled.AccountCircle, listOf("embed", "opengraph", "preview", "discord embed", "view page")),
+    SearchEntry("Avatar", "Account settings", Routes.ACCOUNT, Icons.Filled.AccountCircle, listOf("profile picture", "photo"), anchor = "avatar"),
+    SearchEntry("Change username", "Account settings", Routes.ACCOUNT, Icons.Filled.AccountCircle, listOf("rename", "name"), anchor = "username"),
+    SearchEntry("Change password", "Account settings", Routes.ACCOUNT, Icons.Filled.AccountCircle, listOf("credentials"), anchor = "password"),
+    SearchEntry("Logged-in devices", "Account settings", Routes.ACCOUNT, Icons.Filled.AccountCircle, listOf("sessions", "sign out others", "revoke"), anchor = "sessions"),
+    SearchEntry("Viewing files", "Account settings", Routes.ACCOUNT, Icons.Filled.AccountCircle, listOf("embed", "opengraph", "preview", "discord embed", "view page"), anchor = "viewing"),
 
     // --- app settings ---
-    SearchEntry("App lock", "Settings > Security", Routes.SETTINGS, Icons.Filled.Lock, listOf("biometric", "fingerprint", "face", "pin", "device credential", "lock")),
-    SearchEntry("Lock after", "Settings > Security", Routes.SETTINGS, Icons.Filled.Lock, listOf("timeout", "background", "auto lock")),
-    SearchEntry("Two-factor authentication", "Settings > Security", Routes.SETTINGS, Icons.Filled.Lock, listOf("2fa", "totp", "authenticator", "otp", "mfa")),
-    SearchEntry("Theme", "Settings > Appearance", Routes.SETTINGS, Icons.Filled.Palette, listOf("dark mode", "light", "system", "appearance")),
-    SearchEntry("Dynamic color", "Settings > Appearance", Routes.SETTINGS, Icons.Filled.Palette, listOf("material you", "wallpaper", "colour", "color")),
-    SearchEntry("Sharing link format", "Settings > Sharing", Routes.SETTINGS, Icons.Filled.Share, listOf("markdown", "plain", "view page", "copy link", "clipboard", "embed")),
-    SearchEntry("Recent uploads to sync", "Settings > Dashboard", Routes.SETTINGS, Icons.Filled.Settings, listOf("recent count", "how many")),
-    SearchEntry("Show recent files", "Settings > Dashboard", Routes.SETTINGS, Icons.Filled.Settings, listOf("hide recent")),
-    SearchEntry("Show stat cards", "Settings > Dashboard", Routes.SETTINGS, Icons.Filled.Settings, listOf("statistics", "stats")),
-    SearchEntry("Show file types table", "Settings > Dashboard", Routes.SETTINGS, Icons.Filled.Settings, listOf("types")),
-    SearchEntry("Show on-device history", "Settings > Dashboard", Routes.SETTINGS, Icons.Filled.Settings, listOf("local history")),
-    SearchEntry("Upload notifications", "Settings > Notifications", Routes.SETTINGS, Icons.Filled.Notifications, listOf("progress", "completed", "failed", "silent", "channels")),
-    SearchEntry("Chunked upload", "Settings > Uploads", Routes.SETTINGS, Icons.Filled.Upload, listOf("chunk size", "threshold", "partial", "large files", "resumable")),
-    SearchEntry("Skip the upload sheet", "Settings > Uploads", Routes.SETTINGS, Icons.Filled.Upload, listOf("upload immediately", "no options", "quick")),
+    SearchEntry("App lock", "Settings > Security", Routes.SETTINGS, Icons.Filled.Lock, listOf("biometric", "fingerprint", "face", "pin", "device credential", "lock"), anchor = "app_lock"),
+    SearchEntry("Lock after", "Settings > Security", Routes.SETTINGS, Icons.Filled.Lock, listOf("timeout", "background", "auto lock"), anchor = "lock_after"),
+    SearchEntry("Two-factor authentication", "Settings > Security", Routes.SETTINGS, Icons.Filled.Lock, listOf("2fa", "totp", "authenticator", "otp", "mfa"), anchor = "totp"),
+    SearchEntry("Theme", "Settings > Appearance", Routes.SETTINGS, Icons.Filled.Palette, listOf("dark mode", "light", "system", "appearance"), anchor = "theme"),
+    SearchEntry("Dynamic color", "Settings > Appearance", Routes.SETTINGS, Icons.Filled.Palette, listOf("material you", "wallpaper", "colour", "color"), anchor = "dynamic_color"),
+    SearchEntry("Sharing link format", "Settings > Sharing", Routes.SETTINGS, Icons.Filled.Share, listOf("markdown", "plain", "view page", "copy link", "clipboard", "embed"), anchor = "sharing"),
+    SearchEntry("Recent uploads to sync", "Settings > Dashboard", Routes.SETTINGS, Icons.Filled.Settings, listOf("recent count", "how many"), anchor = "recent_count"),
+    SearchEntry("Show recent files", "Settings > Dashboard", Routes.SETTINGS, Icons.Filled.Settings, listOf("hide recent"), anchor = "show_recents"),
+    SearchEntry("Show stat cards", "Settings > Dashboard", Routes.SETTINGS, Icons.Filled.Settings, listOf("statistics", "stats"), anchor = "show_stats"),
+    SearchEntry("Show file types table", "Settings > Dashboard", Routes.SETTINGS, Icons.Filled.Settings, listOf("types"), anchor = "show_types"),
+    SearchEntry("Show on-device history", "Settings > Dashboard", Routes.SETTINGS, Icons.Filled.Settings, listOf("local history"), anchor = "show_local"),
+    SearchEntry("Upload notifications", "Settings > Notifications", Routes.SETTINGS, Icons.Filled.Notifications, listOf("progress", "completed", "failed", "silent", "channels"), anchor = "notifications"),
+    SearchEntry("Chunked upload", "Settings > Uploads", Routes.SETTINGS, Icons.Filled.Upload, listOf("chunk size", "threshold", "partial", "large files", "resumable"), anchor = "chunked"),
+    SearchEntry("Skip the upload sheet", "Settings > Uploads", Routes.SETTINGS, Icons.Filled.Upload, listOf("upload immediately", "no options", "quick"), anchor = "skip_sheet"),
     SearchEntry("Image compression", "Settings > Upload defaults", Routes.SETTINGS, Icons.Filled.Upload, listOf("auto", "jpeg quality", "png quality", "webp", "jxl", "shrink", "re-encode")),
     SearchEntry("Name format", "Settings > Upload defaults", Routes.SETTINGS, Icons.Filled.Upload, listOf("random", "uuid", "date", "gfycat", "filename")),
     SearchEntry("Default folder", "Settings > Upload defaults", Routes.SETTINGS, Icons.Filled.Upload, listOf("folder")),
@@ -129,10 +137,10 @@ val appSearchIndex: List<SearchEntry> = listOf(
     SearchEntry("Return domain", "Settings > Upload defaults", Routes.SETTINGS, Icons.Filled.Upload, listOf("domain", "cname")),
 
     // --- diagnostic ---
-    SearchEntry("Upload history", "Diagnostic", Routes.DIAGNOSTIC, Icons.Filled.BugReport, listOf("past uploads", "clear history")),
-    SearchEntry("Activity log", "Diagnostic", Routes.DIAGNOSTIC, Icons.Filled.BugReport, listOf("logs", "export log", "auth log", "troubleshoot")),
-    SearchEntry("Backup and import settings", "Diagnostic", Routes.DIAGNOSTIC, Icons.Filled.BugReport, listOf("export settings", "import settings", "backup", "restore")),
-    SearchEntry("Zipline server version", "Diagnostic", Routes.DIAGNOSTIC, Icons.Filled.BugReport, listOf("version", "update", "upstream")),
+    SearchEntry("Upload history", "Diagnostic", Routes.DIAGNOSTIC, Icons.Filled.BugReport, listOf("past uploads", "clear history"), anchor = "history"),
+    SearchEntry("Activity log", "Diagnostic", Routes.DIAGNOSTIC, Icons.Filled.BugReport, listOf("logs", "export log", "auth log", "troubleshoot"), anchor = "logs"),
+    SearchEntry("Backup and import settings", "Diagnostic", Routes.DIAGNOSTIC, Icons.Filled.BugReport, listOf("export settings", "import settings", "backup", "restore"), anchor = "backup"),
+    SearchEntry("Zipline server version", "Diagnostic", Routes.DIAGNOSTIC, Icons.Filled.BugReport, listOf("version", "update", "upstream"), anchor = "version"),
 )
 
 /**
@@ -229,7 +237,7 @@ fun AppSearchDialog(
                         items(results, key = { it.title + it.where }) { entry ->
                             SearchResultRow(entry) {
                                 onDismiss()
-                                onNavigate(entry.route)
+                                onNavigate(entry.destination)
                             }
                         }
                     }

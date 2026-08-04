@@ -49,6 +49,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import dev.zipshare.data.model.LinkFormat
 import dev.zipshare.data.model.UploadOptions
 import dev.zipshare.security.Biometrics
+import dev.zipshare.ui.FocusTarget
 import dev.zipshare.ui.shareFile
 import dev.zipshare.ui.upload.UploadOptionsForm
 import java.io.File
@@ -58,6 +59,8 @@ import java.io.File
 fun SettingsScreen(
     onMenu: () -> Unit,
     username: String? = null,
+    /** Row id from search: scroll to it and flash it on arrival. */
+    focus: String? = null,
     vm: SettingsViewModel = hiltViewModel(),
 ) {
     val s by vm.settings.collectAsStateWithLifecycle()
@@ -108,9 +111,11 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text("Security", style = MaterialTheme.typography.titleMedium)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Switch(checked = s.appLockEnabled, onCheckedChange = vm::setAppLock)
-                Text("Require biometric / device credential", Modifier.padding(start = 8.dp))
+            FocusTarget("app_lock", focus) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(checked = s.appLockEnabled, onCheckedChange = vm::setAppLock)
+                    Text("Require biometric / device credential", Modifier.padding(start = 8.dp))
+                }
             }
             // Without an enrolled credential the lock silently never engages, which is worse than
             // not offering it - say so instead of implying the app is protected.
@@ -122,26 +127,30 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.error,
                 )
             }
-            NumberSetting(
-                initial = s.lockTimeoutSeconds,
-                label = "Lock after (seconds in background)",
-                enabled = s.appLockEnabled,
-                onCommit = vm::setTimeout,
-            )
+            FocusTarget("lock_after", focus) {
+                NumberSetting(
+                    initial = s.lockTimeoutSeconds,
+                    label = "Lock after (seconds in background)",
+                    enabled = s.appLockEnabled,
+                    onCommit = vm::setTimeout,
+                )
+            }
 
             HorizontalDivider()
 
-            TotpSection(username = username, vm = vm)
+            FocusTarget("totp", focus) { TotpSection(username = username, vm = vm) }
 
             HorizontalDivider()
             Text("Dashboard", style = MaterialTheme.typography.titleMedium)
-            NumberSetting(
-                initial = s.recentCount,
-                label = "Recent uploads to sync",
-                supporting = "1-100. Pulled from /api/user/recent on each refresh.",
-                enabled = s.showRecents,
-                onCommit = vm::setRecentCount,
-            )
+            FocusTarget("recent_count", focus) {
+                NumberSetting(
+                    initial = s.recentCount,
+                    label = "Recent uploads to sync",
+                    supporting = "1-100. Pulled from /api/user/recent on each refresh.",
+                    enabled = s.showRecents,
+                    onCommit = vm::setRecentCount,
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(3, 5, 10, 20, 50).forEach { n ->
                     FilterChip(
@@ -152,10 +161,10 @@ fun SettingsScreen(
                     )
                 }
             }
-            ToggleRow("Show recent files", s.showRecents, vm::setShowRecents)
-            ToggleRow("Show stat cards", s.showStats, vm::setShowStats)
-            ToggleRow("Show file types table", s.showTypes, vm::setShowTypes)
-            ToggleRow("Show on-device history", s.showLocalHistory, vm::setShowLocalHistory)
+            FocusTarget("show_recents", focus) { ToggleRow("Show recent files", s.showRecents, vm::setShowRecents) }
+            FocusTarget("show_stats", focus) { ToggleRow("Show stat cards", s.showStats, vm::setShowStats) }
+            FocusTarget("show_types", focus) { ToggleRow("Show file types table", s.showTypes, vm::setShowTypes) }
+            FocusTarget("show_local", focus) { ToggleRow("Show on-device history", s.showLocalHistory, vm::setShowLocalHistory) }
 
             HorizontalDivider()
             Text("Notifications", style = MaterialTheme.typography.titleMedium)
@@ -170,7 +179,7 @@ fun SettingsScreen(
                     Text("Open Android notification settings")
                 }
             }
-            ToggleRow("Upload progress details", s.notifyProgress, vm::setNotifyProgress)
+            FocusTarget("notifications", focus) { ToggleRow("Upload progress details", s.notifyProgress, vm::setNotifyProgress) }
             Text(
                 "Android requires an ongoing notification while uploading. Turning this off " +
                     "keeps it, but hides the file name and percentage.",
@@ -182,6 +191,7 @@ fun SettingsScreen(
 
             HorizontalDivider()
             Text("Appearance", style = MaterialTheme.typography.titleMedium)
+            FocusTarget("theme", focus) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("system", "light", "dark").forEach { mode ->
                     FilterChip(
@@ -191,10 +201,13 @@ fun SettingsScreen(
                     )
                 }
             }
-            ToggleRow("Dynamic color", s.dynamicColor, vm::setDynamicColor)
+            }
+            FocusTarget("dynamic_color", focus) { ToggleRow("Dynamic color", s.dynamicColor, vm::setDynamicColor) }
 
             HorizontalDivider()
             Text("Sharing", style = MaterialTheme.typography.titleMedium)
+            FocusTarget("sharing", focus) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 "What the Copy link buttons put on the clipboard.",
                 style = MaterialTheme.typography.bodySmall,
@@ -240,6 +253,8 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            }
+            }
 
             HorizontalDivider()
             Text("Chunked upload (this device)", style = MaterialTheme.typography.titleMedium)
@@ -251,16 +266,20 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            NumberSetting(
-                initial = s.partialThresholdMiB,
-                label = "Use chunked upload above (MiB)",
-                onCommit = vm::setThreshold,
-            )
-            NumberSetting(
-                initial = s.chunkSizeMiB,
-                label = "Chunk size (MiB)",
-                onCommit = vm::setChunkSize,
-            )
+            FocusTarget("chunked", focus) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NumberSetting(
+                        initial = s.partialThresholdMiB,
+                        label = "Use chunked upload above (MiB)",
+                        onCommit = vm::setThreshold,
+                    )
+                    NumberSetting(
+                        initial = s.chunkSizeMiB,
+                        label = "Chunk size (MiB)",
+                        onCommit = vm::setChunkSize,
+                    )
+                }
+            }
 
             HorizontalDivider()
             Text("Upload defaults", style = MaterialTheme.typography.titleMedium)
@@ -269,6 +288,7 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            FocusTarget("skip_sheet", focus) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Switch(checked = s.skipUploadSheet, onCheckedChange = vm::setSkipUploadSheet)
                 Column(Modifier.padding(start = 8.dp)) {
@@ -279,6 +299,7 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
             }
             UploadOptionsForm(
                 options = options,

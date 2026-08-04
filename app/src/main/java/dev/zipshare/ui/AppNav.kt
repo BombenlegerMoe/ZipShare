@@ -14,6 +14,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.navArgument
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -176,10 +177,23 @@ fun AppNav(startAction: String? = null) {
                     onNavigate = ::go,
                 )
             }
-            composable(Routes.ACCOUNT) {
-                AccountSettingsScreen(onBack = { nav.popBackStack() })
+            // `focus` is optional: the drawer navigates to the bare route, search appends the id of
+            // the row it found so the screen can scroll to it and flash it.
+            composable(
+                "${Routes.ACCOUNT}?focus={focus}",
+                arguments = listOf(navArgument("focus") { nullable = true; defaultValue = null }),
+            ) { entry ->
+                AccountSettingsScreen(
+                    onBack = { nav.popBackStack() },
+                    focus = entry.arguments?.getString("focus"),
+                )
             }
-            composable(Routes.DIAGNOSTIC) { DiagnosticScreen(onMenu = openMenu) }
+            composable(
+                "${Routes.DIAGNOSTIC}?focus={focus}",
+                arguments = listOf(navArgument("focus") { nullable = true; defaultValue = null }),
+            ) { entry ->
+                DiagnosticScreen(onMenu = openMenu, focus = entry.arguments?.getString("focus"))
+            }
             composable(Routes.FILES) {
                 FilesScreen(
                     onMenu = openMenu,
@@ -233,10 +247,17 @@ fun AppNav(startAction: String? = null) {
                     onBack = { nav.popBackStack() },
                 )
             }
-            composable(Routes.SETTINGS) {
+            composable(
+                "${Routes.SETTINGS}?focus={focus}",
+                arguments = listOf(navArgument("focus") { nullable = true; defaultValue = null }),
+            ) { entry ->
                 // Username comes from the shell rather than a second /api/user call; it only
                 // labels the entry in the authenticator app.
-                SettingsScreen(onMenu = openMenu, username = shell.me?.username)
+                SettingsScreen(
+                    onMenu = openMenu,
+                    username = shell.me?.username,
+                    focus = entry.arguments?.getString("focus"),
+                )
             }
             composable("${Routes.VIEWER}?name={name}&preview={preview}&share={share}&play={play}") { entry ->
                 val args = entry.arguments
