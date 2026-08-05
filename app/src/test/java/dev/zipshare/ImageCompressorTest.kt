@@ -81,4 +81,48 @@ class ImageCompressorTest {
     fun `a tiny saving is never reported as zero`() {
         assertEquals(1, ImageCompressor.savingPercent(before = 100_000, after = 99_999))
     }
+
+    // --- decode sizing -------------------------------------------------------------------------
+    // An unbounded decode of a 12 MP photo asks for ~48 MB in one block, which is what used to
+    // throw OutOfMemoryError and silently skip compression on exactly the photos worth shrinking.
+
+    private val heap256mb = 256L * 1024 * 1024 / 4 // the budget a ~256 MB heap allows
+
+    /** A normal phone photo on a normal heap must decode untouched - no quality change. */
+    @Test
+    fun `an ordinary photo is not downscaled on a modern heap`() {
+        assertEquals(1, ImageCompressor.sampleSizeFor(4032, 3024, heap256mb))
+    }
+
+    @Test
+    fun `a huge image is downscaled enough to fit the budget`() {
+        val sample = ImageCompressor.sampleSizeFor(12000, 9000, heap256mb)
+        assertTrue("expected downscaling, got $sample", sample > 1)
+        val pixels = (12000L / sample) * (9000L / sample)
+        assertTrue("still over budget at 1/$sample", pixels * 4 <= heap256mb)
+    }
+
+    /** The same image on a small heap must degrade further rather than fail outright. */
+    @Test
+    fun `a smaller heap downscales more`() {
+        val roomy = ImageCompressor.sampleSizeFor(4032, 3024, heap256mb)
+        val tight = ImageCompressor.sampleSizeFor(4032, 3024, 8L * 1024 * 1024)
+        assertTrue("tight heap should sample more than $roomy", tight > roomy)
+    }
+
+    /** BitmapFactory floors inSampleSize to a power of two, so anything else is wasted precision. */
+    @Test
+    fun `the sample size is always a power of two`() {
+        listOf(heap256mb, 8L * 1024 * 1024, 1L * 1024 * 1024).forEach { budget ->
+            val s = ImageCompressor.sampleSizeFor(9000, 7000, budget)
+            assertEquals("$s is not a power of two", 0, s and (s - 1))
+        }
+    }
+
+    @Test
+    fun `an unreadable size falls back to no subsampling`() {
+        assertEquals(1, ImageCompressor.sampleSizeFor(0, 0, heap256mb))
+        assertEquals(1, ImageCompressor.sampleSizeFor(-1, 100, heap256mb))
+        assertEquals(1, ImageCompressor.sampleSizeFor(100, 100, 0))
+    }
 }

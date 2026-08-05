@@ -147,6 +147,14 @@ val appSearchIndex: List<SearchEntry> = listOf(
     SearchEntry("Expiry", "Settings > Upload defaults", Routes.SETTINGS, Icons.Filled.Upload, listOf("deletes at", "expiration", "delete after"), anchor = "expiry"),
     SearchEntry("Keep original name", "Settings > Upload defaults", Routes.SETTINGS, Icons.Filled.Upload, listOf("original name"), anchor = "original_name"),
     SearchEntry("Return domain", "Settings > Upload defaults", Routes.SETTINGS, Icons.Filled.Upload, listOf("domain", "cname"), anchor = "domain"),
+    SearchEntry(
+        "File extension override",
+        "Settings > Upload defaults",
+        Routes.SETTINGS,
+        Icons.Filled.Upload,
+        listOf("extension", "extensionless", "suffix", "file type", "rename", "png", "jpg"),
+        anchor = "file_extension",
+    ),
 
     // --- diagnostic ---
     SearchEntry("Upload history", "Diagnostic", Routes.DIAGNOSTIC, Icons.Filled.BugReport, listOf("past uploads", "clear history"), anchor = "history"),

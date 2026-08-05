@@ -129,15 +129,10 @@ object UploadInput {
         val safeName = meta(context, uri).name.take(80).replace(Regex("[^A-Za-z0-9._-]"), "_")
         val target = File(dir, "${System.nanoTime()}_$safeName")
 
+        // copyTo's default buffer is 8 KiB, the same as the loop this replaces - the file is still
+        // never held in memory.
         context.contentResolver.openInputStream(uri)?.use { input ->
-            FileOutputStream(target).use { out ->
-                val buf = ByteArray(8 * 1024)
-                while (true) {
-                    val r = input.read(buf)
-                    if (r == -1) break
-                    out.write(buf, 0, r)
-                }
-            }
+            FileOutputStream(target).use { out -> input.copyTo(out) }
         } ?: throw IOException("Cannot open $uri for reading.")
 
         return Uri.fromFile(target) to true
