@@ -64,6 +64,63 @@ object ImageCompressor {
     }
 
     /**
+     * How many bytes one decoded bitmap may occupy, as a share of this process's heap.
+     *
+     * A quarter is deliberately generous: on a modern phone (a ~256 MB heap) it clears 16 MP, so an
+     * ordinary 12 MP photo decodes at full resolution and nothing about the result changes. It only
+     * bites on genuinely huge images or genuinely small heaps - which is exactly where the old
+     * unbounded decode threw [OutOfMemoryError] and gave up.
+     */
+    private fun decodeBudgetBytes(): Long = Runtime.getRuntime().maxMemory() / 4
+
+    private const val BYTES_PER_PIXEL = 4 // ARGB_8888
+
+    /**
+     * The power-of-two subsampling factor that brings `width x height` inside [budgetBytes].
+     *
+     * BitmapFactory rounds inSampleSize down to a power of two anyway, so computing one directly
+     * avoids asking for a size the decoder will not honour.
+     */
+    internal fun sampleSizeFor(width: Int, height: Int, budgetBytes: Long): Int {
+        if (width <= 0 || height <= 0 || budgetBytes <= 0) return 1
+        var sample = 1
+        // 1024 is far past any real image; the cap only stops a pathological loop.
+        while (sample < 1024) {
+            val pixels = (width / sample).toLong() * (height / sample).toLong()
+            if (pixels * BYTES_PER_PIXEL <= budgetBytes) return sample
+            sample *= 2
+        }
+        return sample
+    }
+
+    /**
+     * Decodes at the largest power-of-two fraction that fits the heap budget.
+     *
+     * The bounds pass allocates nothing - it only reads the header - so the size is known before
+     * anything large is committed.
+     */
+    private fun decodeBounded(context: Context, uri: Uri, name: String): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, bounds)
+        }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+        val sample = sampleSizeFor(bounds.outWidth, bounds.outHeight, decodeBudgetBytes())
+        if (sample > 1) {
+            AppLog.log(
+                "upload",
+                "$name decoded at 1/$sample scale: ${bounds.outWidth}x${bounds.outHeight} " +
+                    "would not fit the heap budget",
+            )
+        }
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+        return context.contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, opts)
+        }
+    }
+
+    /**
      * Writes a re-encoded copy into [cacheDir] and returns it, or null when it could not be done or
      * would not help. Blocking and memory-hungry; call from a worker thread.
      */
@@ -74,10 +131,9 @@ object ImageCompressor {
         quality: Int,
         cacheDir: File,
         originalSize: Long,
+        name: String = "image",
     ): File? {
-        val bitmap = runCatching {
-            context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
-        }.getOrNull() ?: return null
+        val bitmap = runCatching { decodeBounded(context, uri, name) }.getOrNull() ?: return null
 
         // JPEG has no alpha channel, so a transparent screenshot would come out flattened onto
         // black. Losing the image is worse than losing the saving, so leave it alone.

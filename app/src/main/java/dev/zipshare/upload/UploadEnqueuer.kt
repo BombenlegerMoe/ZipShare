@@ -88,6 +88,7 @@ class UploadEnqueuer @Inject constructor(
                         quality = cfg.deviceCompressionQuality,
                         cacheDir = File(context.cacheDir, "staged"),
                         originalSize = meta.size,
+                        name = meta.name,
                     )
                 } else {
                     null

@@ -73,4 +73,28 @@ class AppSearchTest {
     fun `every entry points at a non-blank route`() {
         assertTrue(appSearchIndex.all { it.route.isNotBlank() })
     }
+
+    /** The extension override was in Settings but missing from the index, so search never found it. */
+    @Test
+    fun `the file extension override is findable`() {
+        assertTrue(titles("extension").contains("File extension override"))
+        assertTrue(titles("extensionless").contains("File extension override"))
+    }
+
+    /**
+     * Two entries sharing an anchor would send search to whichever row FocusTarget registered last,
+     * which looks like the jump landing on the wrong setting.
+     */
+    @Test
+    fun `no two entries share an anchor`() {
+        val anchors = appSearchIndex.mapNotNull { it.anchor }
+        assertEquals(anchors.size, anchors.distinct().size)
+    }
+
+    /** A duplicate title reads as the same result listed twice. */
+    @Test
+    fun `no two entries share a title`() {
+        val titles = appSearchIndex.map { it.title }
+        assertEquals(titles.size, titles.distinct().size)
+    }
 }

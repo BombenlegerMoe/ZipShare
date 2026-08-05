@@ -184,13 +184,15 @@ fun UploadOptionsForm(
             )
         }
 
-        OutlinedTextField(
-            value = options.fileExtension.orEmpty(),
-            onValueChange = { onChange(options.copy(fileExtension = it.ifBlank { null })) },
-            label = { Text("File extension override") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        FocusTarget("file_extension", focus, spacing = 12.dp) {
+            OutlinedTextField(
+                value = options.fileExtension.orEmpty(),
+                onValueChange = { onChange(options.copy(fileExtension = it.ifBlank { null })) },
+                label = { Text("File extension override") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
 
         FocusTarget("domain", focus, spacing = 12.dp) {
             OutlinedTextField(
