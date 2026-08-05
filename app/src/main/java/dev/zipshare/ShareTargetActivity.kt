@@ -19,6 +19,7 @@ import dev.zipshare.data.prefs.SettingsStore
 import dev.zipshare.log.AppLog
 import dev.zipshare.upload.UploadEnqueuer
 import dev.zipshare.upload.UploadNotifications
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -35,17 +36,35 @@ import javax.inject.Inject
  * checked, and staying off the framework keeps it testable on the jvm.
  */
 internal fun sharedLink(text: String?): String? {
-    val links = text.orEmpty().trim().split(WHITESPACE).filter { candidate ->
-        SCHEMES.any { candidate.startsWith(it, ignoreCase = true) }
-    }
+    val links = text.orEmpty().trim().split(WHITESPACE)
+        .map { it.trimUrlPunctuation() }
+        .filter { candidate -> SCHEMES.any { candidate.startsWith(it, ignoreCase = true) } }
     val only = links.singleOrNull() ?: return null
     // Reject "https://" and "https:///path": there has to be a host to shorten.
     val host = only.substringAfter("//").substringBefore('/').substringBefore('?').substringBefore('#')
     return only.takeIf { host.isNotEmpty() }
 }
 
+/**
+ * Strips the punctuation a link picks up from the sentence around it — `look at https://x.com.`
+ * or `"https://x.com"` — without eating punctuation the url actually owns.
+ *
+ * A trailing `)` is the interesting case: it closes something the url opened in
+ * `.../Mercury_(planet)`, and is sentence punctuation in `(https://x.com)`. Counting brackets tells
+ * the two apart, which is what linkifiers generally do.
+ */
+private fun String.trimUrlPunctuation(): String {
+    var trimmed = trimStart(*LEADING_PUNCTUATION).trimEnd(*TRAILING_PUNCTUATION)
+    while (trimmed.endsWith(')') && trimmed.count { it == ')' } > trimmed.count { it == '(' }) {
+        trimmed = trimmed.dropLast(1).trimEnd(*TRAILING_PUNCTUATION)
+    }
+    return trimmed
+}
+
 private val WHITESPACE = Regex("\\s+")
 private val SCHEMES = listOf("http://", "https://")
+private val LEADING_PUNCTUATION = charArrayOf('"', '\'', '(', '<', '[')
+private val TRAILING_PUNCTUATION = charArrayOf('.', ',', ';', ':', '!', '?', '"', '\'', '>', ']')
 
 /**
  * Transparent share target: enqueues with the active profile's default upload options and finishes.
@@ -63,6 +82,8 @@ class ShareTargetActivity : ComponentActivity() {
     @Inject lateinit var settings: SettingsStore
 
     @Inject lateinit var clients: ZiplineClients
+
+    @Inject lateinit var notifications: UploadNotifications
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -105,18 +126,23 @@ class ShareTargetActivity : ComponentActivity() {
 
     /** The destination is the user's own business, so it never reaches the log. */
     private suspend fun shorten(link: String, profile: Profile) {
-        runCatching {
+        val created = try {
             withContext(Dispatchers.IO) {
                 clients.api(profile).createUrl(CreateUrlBody(link)).unwrap()
             }
+        } catch (e: CancellationException) {
+            // runCatching would have swallowed this and toasted at an activity already tearing
+            // down. Cancellation is not a failure to report.
+            throw e
+        } catch (e: Exception) {
+            toastAndFinish(e.message ?: "Could not shorten that link.")
+            return
         }
-            .onSuccess {
-                val short = it.shortLink(profile.baseUrl)
-                UploadNotifications(applicationContext).copyToClipboard(short)
-                AppLog.log("share", "shortened a shared link")
-                toastAndFinish("Copied $short")
-            }
-            .onFailure { toastAndFinish(it.message ?: "Could not shorten that link.") }
+
+        val short = created.shortLink(profile.baseUrl)
+        notifications.copyToClipboard(short)
+        AppLog.log("share", "shortened a shared link")
+        toastAndFinish("Copied $short")
     }
 
     private fun extractUris(intent: Intent?): List<Uri> = when (intent?.action) {
