@@ -22,6 +22,7 @@ import dev.zipshare.data.net.unwrap
 import dev.zipshare.data.prefs.AppSettings
 import dev.zipshare.data.prefs.SettingsStore
 import dev.zipshare.log.AppLog
+import dev.zipshare.ui.userMessage
 import dev.zipshare.upload.UploadEnqueuer
 import dev.zipshare.upload.UploadInput
 import kotlinx.coroutines.Dispatchers
@@ -160,7 +161,7 @@ class HomeViewModel @Inject constructor(
                 sideEffect(active, e)
                 _state.value = _state.value.copy(
                     syncing = false,
-                    syncError = (e as? ZiplineException)?.display ?: e.message ?: "Sync failed",
+                    syncError = e.userMessage("Sync failed"),
                 )
             }
         }
@@ -287,9 +288,7 @@ class HomeViewModel @Inject constructor(
 
     private fun report(profile: Profile, e: Throwable) {
         sideEffect(profile, e)
-        _state.value = _state.value.copy(
-            error = (e as? ZiplineException)?.display ?: e.message ?: "Network error",
-        )
+        _state.value = _state.value.copy(error = e.userMessage("Network error"))
     }
 
     private fun sideEffect(profile: Profile, e: Throwable) {

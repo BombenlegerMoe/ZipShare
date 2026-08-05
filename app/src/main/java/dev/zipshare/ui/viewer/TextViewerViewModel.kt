@@ -9,9 +9,9 @@ import dev.zipshare.data.db.HistoryEntry
 import dev.zipshare.data.net.shareUrl
 import dev.zipshare.data.net.UploadHeaderBuilder
 import dev.zipshare.data.net.ZiplineClients
-import dev.zipshare.data.net.ZiplineException
 import dev.zipshare.data.net.unwrap
 import dev.zipshare.data.prefs.SettingsStore
+import dev.zipshare.ui.userMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -98,7 +98,7 @@ class TextViewerViewModel @Inject constructor(
             onFailure = { e ->
                 _state.value.copy(
                     loading = false,
-                    error = (e as? ZiplineException)?.display ?: e.message ?: "Could not load",
+                    error = e.userMessage("Could not load"),
                 )
             },
         )
@@ -151,7 +151,7 @@ class TextViewerViewModel @Inject constructor(
         }.onFailure { e ->
             _state.value = _state.value.copy(
                 saving = false,
-                error = (e as? ZiplineException)?.display ?: e.message ?: "Save failed",
+                error = e.userMessage("Save failed"),
             )
         }
     }

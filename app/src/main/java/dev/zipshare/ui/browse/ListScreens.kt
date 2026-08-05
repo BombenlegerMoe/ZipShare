@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -54,10 +53,69 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.zipshare.data.net.QuotaBody
+import dev.zipshare.data.net.ZFolder
+import dev.zipshare.data.net.ZLimitedUser
 import dev.zipshare.data.net.shortLink
 import dev.zipshare.ui.shell.EmptyOrError
 import dev.zipshare.ui.shell.PullRefresh
 import dev.zipshare.ui.shell.ShellTopBar
+
+/**
+ * The frame the three list pages share: top bar, add button, pull-to-refresh, and the switch
+ * between an empty message and the list. Each page supplies only what actually differs - what it
+ * is called, what it loads, what "nothing here" means for it, and how one row looks.
+ *
+ * [state] is passed in rather than collected here because every page also reads it for its own
+ * dialogs and load triggers; collecting it twice would be two subscriptions to one flow.
+ */
+@Composable
+private fun <T> BrowseListScaffold(
+    title: String,
+    addLabel: String,
+    empty: String,
+    rows: List<T>,
+    key: (T) -> Any,
+    state: BrowseState,
+    vm: BrowseViewModel,
+    onMenu: () -> Unit,
+    onAdd: () -> Unit,
+    onRefresh: () -> Unit,
+    row: @Composable (T) -> Unit,
+) {
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(state.error) { state.error?.let { snackbar.showSnackbar(it); vm.clearError() } }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
+        floatingActionButton = {
+            FloatingActionButton(onClick = onAdd) { Icon(Icons.Filled.Add, addLabel) }
+        },
+        topBar = {
+            ShellTopBar(
+                title = title,
+                profiles = state.profiles,
+                activeLabel = state.active?.label,
+                onMenu = onMenu,
+                onSelectProfile = vm::selectProfile,
+            )
+        },
+    ) { padding ->
+        PullRefresh(
+            refreshing = state.loading,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxSize().padding(padding),
+        ) {
+            if (rows.isEmpty() && !state.loading) {
+                EmptyOrError(empty)
+            } else {
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 4.dp)) {
+                    items(rows, key = key) { row(it) }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun FoldersScreen(
@@ -66,12 +124,10 @@ fun FoldersScreen(
     vm: BrowseViewModel = hiltViewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
-    val snackbar = remember { SnackbarHostState() }
     var creating by remember { mutableStateOf(false) }
-    var editing by remember { mutableStateOf<dev.zipshare.data.net.ZFolder?>(null) }
+    var editing by remember { mutableStateOf<ZFolder?>(null) }
 
     LaunchedEffect(state.active?.id) { if (state.active != null) vm.loadFolders() }
-    LaunchedEffect(state.error) { state.error?.let { snackbar.showSnackbar(it); vm.clearError() } }
 
     if (creating) {
         CreateFolderDialog(
@@ -91,78 +147,57 @@ fun FoldersScreen(
         )
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { creating = true }) { Icon(Icons.Filled.Add, "New folder") }
-        },
-        topBar = {
-            ShellTopBar(
-                title = "Folders",
-                profiles = state.profiles,
-                activeLabel = state.active?.label,
-                onMenu = onMenu,
-                onSelectProfile = vm::selectProfile,
-            )
-        },
-    ) { padding ->
-        PullRefresh(
-            refreshing = state.loading,
-            onRefresh = vm::loadFolders,
-            modifier = Modifier.fillMaxSize().padding(padding),
-        ) {
-        Column(Modifier.fillMaxSize()) {
-            if (state.folders.isEmpty() && !state.loading) {
-                EmptyOrError("No folders on this server.")
-            } else {
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 4.dp)) {
-                    items(state.folders, key = { it.id }) { folder ->
-                        ListItem(
-                            headlineContent = { Text(folder.name) },
-                            supportingContent = {
-                                Text(
-                                    buildString {
-                                        if (folder.isPublic) append("public") else append("private")
-                                        if (folder.allowUploads) append(" - accepts uploads")
-                                        folder.parentId?.let { pid ->
-                                            state.folders.firstOrNull { it.id == pid }
-                                                ?.let { append(" - in ${it.name}") }
-                                        }
-                                    },
-                                    style = MaterialTheme.typography.labelSmall,
-                                )
-                            },
-                            leadingContent = { Icon(Icons.Filled.Folder, null) },
-                            trailingContent = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    if (folder.isPublic) {
-                                        Icon(Icons.Filled.Public, "Public", Modifier.size(18.dp))
-                                    }
-                                    IconButton(onClick = { editing = folder }) {
-                                        Icon(Icons.Filled.Edit, "Edit folder", Modifier.size(18.dp))
-                                    }
-                                }
-                            },
-                            modifier = Modifier.clickable { onOpenFolder(folder.id, folder.name) },
-                        )
+    BrowseListScaffold(
+        title = "Folders",
+        addLabel = "New folder",
+        empty = "No folders on this server.",
+        rows = state.folders,
+        key = { it.id },
+        state = state,
+        vm = vm,
+        onMenu = onMenu,
+        onAdd = { creating = true },
+        onRefresh = vm::loadFolders,
+    ) { folder ->
+        ListItem(
+            headlineContent = { Text(folder.name) },
+            supportingContent = {
+                Text(
+                    buildString {
+                        if (folder.isPublic) append("public") else append("private")
+                        if (folder.allowUploads) append(" - accepts uploads")
+                        folder.parentId?.let { pid ->
+                            state.folders.firstOrNull { it.id == pid }
+                                ?.let { append(" - in ${it.name}") }
+                        }
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            },
+            leadingContent = { Icon(Icons.Filled.Folder, null) },
+            trailingContent = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (folder.isPublic) {
+                        Icon(Icons.Filled.Public, "Public", Modifier.size(18.dp))
+                    }
+                    IconButton(onClick = { editing = folder }) {
+                        Icon(Icons.Filled.Edit, "Edit folder", Modifier.size(18.dp))
                     }
                 }
-            }
-        }
-        }
+            },
+            modifier = Modifier.clickable { onOpenFolder(folder.id, folder.name) },
+        )
     }
 }
 
 @Composable
 fun UrlsScreen(onMenu: () -> Unit, vm: BrowseViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
-    val snackbar = remember { SnackbarHostState() }
     val clipboard = LocalClipboardManager.current
     val base = state.active?.baseUrl.orEmpty().trimEnd('/')
     var creating by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.active?.id) { if (state.active != null) vm.loadUrls() }
-    LaunchedEffect(state.error) { state.error?.let { snackbar.showSnackbar(it); vm.clearError() } }
 
     if (creating) {
         CreateUrlDialog(
@@ -171,79 +206,58 @@ fun UrlsScreen(onMenu: () -> Unit, vm: BrowseViewModel = hiltViewModel()) {
         )
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { creating = true }) { Icon(Icons.Filled.Add, "New URL") }
-        },
-        topBar = {
-            ShellTopBar(
-                title = "URLs",
-                profiles = state.profiles,
-                activeLabel = state.active?.label,
-                onMenu = onMenu,
-                onSelectProfile = vm::selectProfile,
-            )
-        },
-    ) { padding ->
-        PullRefresh(
-            refreshing = state.loading,
-            onRefresh = vm::loadUrls,
-            modifier = Modifier.fillMaxSize().padding(padding),
-        ) {
-        Column(Modifier.fillMaxSize()) {
-            if (state.urls.isEmpty() && !state.loading) {
-                EmptyOrError("No shortened links on this server.")
-            } else {
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 4.dp)) {
-                    items(state.urls, key = { it.id }) { url ->
-                        val short = url.shortLink(base)
-                        ListItem(
-                            headlineContent = {
-                                Text(url.vanity ?: url.code, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            },
-                            supportingContent = {
-                                Column {
-                                    Text(
-                                        url.destination,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                    Text(
-                                        buildString {
-                                            append("${url.views} views")
-                                            url.maxViews?.let { append(" / max $it") }
-                                            if (!url.enabled) append(" - disabled")
-                                        },
-                                        style = MaterialTheme.typography.labelSmall,
-                                    )
-                                }
-                            },
-                            leadingContent = { Icon(Icons.Filled.Link, null) },
-                            trailingContent = {
-                                IconButton(onClick = { vm.deleteUrl(url) }) {
-                                    Icon(Icons.Filled.Delete, "Delete")
-                                }
-                            },
-                            modifier = Modifier.clickable {
-                                clipboard.setText(AnnotatedString(short))
-                            },
-                        )
-                    }
+    BrowseListScaffold(
+        title = "URLs",
+        addLabel = "New URL",
+        empty = "No shortened links on this server.",
+        rows = state.urls,
+        key = { it.id },
+        state = state,
+        vm = vm,
+        onMenu = onMenu,
+        onAdd = { creating = true },
+        onRefresh = vm::loadUrls,
+    ) { url ->
+        ListItem(
+            headlineContent = {
+                Text(url.vanity ?: url.code, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            },
+            supportingContent = {
+                Column {
+                    Text(
+                        url.destination,
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        buildString {
+                            append("${url.views} views")
+                            url.maxViews?.let { append(" / max $it") }
+                            if (!url.enabled) append(" - disabled")
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                    )
                 }
-            }
-        }
-        }
+            },
+            leadingContent = { Icon(Icons.Filled.Link, null) },
+            trailingContent = {
+                IconButton(onClick = { vm.deleteUrl(url) }) {
+                    Icon(Icons.Filled.Delete, "Delete")
+                }
+            },
+            modifier = Modifier.clickable {
+                clipboard.setText(AnnotatedString(url.shortLink(base)))
+            },
+        )
     }
 }
 
 @Composable
 fun UsersScreen(onMenu: () -> Unit, vm: BrowseViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
-    val snackbar = remember { SnackbarHostState() }
     var creating by remember { mutableStateOf(false) }
-    var editing by remember { mutableStateOf<dev.zipshare.data.net.ZLimitedUser?>(null) }
+    var editing by remember { mutableStateOf<ZLimitedUser?>(null) }
 
     LaunchedEffect(state.active?.id) {
         if (state.active != null) {
@@ -251,7 +265,6 @@ fun UsersScreen(onMenu: () -> Unit, vm: BrowseViewModel = hiltViewModel()) {
             vm.loadMe()
         }
     }
-    LaunchedEffect(state.error) { state.error?.let { snackbar.showSnackbar(it); vm.clearError() } }
 
     if (creating) {
         CreateUserDialog(
@@ -271,68 +284,46 @@ fun UsersScreen(onMenu: () -> Unit, vm: BrowseViewModel = hiltViewModel()) {
         )
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { creating = true }) { Icon(Icons.Filled.Add, "New user") }
+    BrowseListScaffold(
+        title = "Users",
+        addLabel = "New user",
+        // Distinguish "the server answered with an empty list" from "the request failed". A
+        // non-admin token gets E3000, and the snackbar carries the server's own words.
+        empty = if (state.usersLoaded) {
+            "No other users on this server."
+        } else {
+            "Could not load users. This page needs an administrator token."
         },
-        topBar = {
-            ShellTopBar(
-                title = "Users",
-                profiles = state.profiles,
-                activeLabel = state.active?.label,
-                onMenu = onMenu,
-                onSelectProfile = vm::selectProfile,
-            )
-        },
-    ) { padding ->
-        PullRefresh(
-            refreshing = state.loading,
-            onRefresh = vm::loadUsers,
-            modifier = Modifier.fillMaxSize().padding(padding),
-        ) {
-        Column(Modifier.fillMaxSize()) {
-            if (state.users.isEmpty() && !state.loading) {
-                // Distinguish "the server answered with an empty list" from "the request failed".
-                // A non-admin token gets E3000, and the snackbar carries the server's own words.
-                EmptyOrError(
-                    if (state.usersLoaded) {
-                        "No other users on this server."
-                    } else {
-                        "Could not load users. This page needs an administrator token."
+        rows = state.users,
+        key = { it.id },
+        state = state,
+        vm = vm,
+        onMenu = onMenu,
+        onAdd = { creating = true },
+        onRefresh = vm::loadUsers,
+    ) { user ->
+        ListItem(
+            headlineContent = { Text(user.username) },
+            supportingContent = {
+                Text(
+                    buildString {
+                        append(user.role)
+                        user.quota?.maxBytes?.let { append(" - quota $it") }
+                        user.quota?.maxFiles?.let { append(" - $it files") }
                     },
+                    style = MaterialTheme.typography.labelSmall,
                 )
-            } else {
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 4.dp)) {
-                    items(state.users, key = { it.id }) { user ->
-                        ListItem(
-                            headlineContent = { Text(user.username) },
-                            supportingContent = {
-                                Text(
-                                    buildString {
-                                        append(user.role)
-                                        user.quota?.maxBytes?.let { append(" - quota $it") }
-                                        user.quota?.maxFiles?.let { append(" - $it files") }
-                                    },
-                                    style = MaterialTheme.typography.labelSmall,
-                                )
-                            },
-                            leadingContent = { Icon(Icons.Filled.Group, null) },
-                            trailingContent = {
-                                IconButton(onClick = { editing = user }) {
-                                    Icon(Icons.Filled.Edit, "Edit user", Modifier.size(18.dp))
-                                }
-                            },
-                        )
-                    }
+            },
+            leadingContent = { Icon(Icons.Filled.Group, null) },
+            trailingContent = {
+                IconButton(onClick = { editing = user }) {
+                    Icon(Icons.Filled.Edit, "Edit user", Modifier.size(18.dp))
                 }
-            }
-        }
-        }
+            },
+        )
     }
 }
 
-/** Rename, toggle visibility and uploads, or delete - the same options the web dashboard has. */
 /**
  * The AlertDialog skeleton every dialog here shares: a title, a body, a confirm button whose label
  * and enablement vary, and a Cancel that only dismisses. The body stays a plain slot so each
@@ -360,7 +351,7 @@ private fun FormDialog(
 
 @Composable
 private fun EditFolderDialog(
-    folder: dev.zipshare.data.net.ZFolder,
+    folder: ZFolder,
     onDismiss: () -> Unit,
     onSave: (name: String?, isPublic: Boolean?, allowUploads: Boolean?) -> Unit,
     onDelete: (keepFiles: Boolean) -> Unit,
@@ -437,14 +428,14 @@ private fun EditFolderDialog(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun EditUserDialog(
-    user: dev.zipshare.data.net.ZLimitedUser,
+    user: ZLimitedUser,
     isSelf: Boolean,
     onDismiss: () -> Unit,
     onSave: (
         username: String?,
         password: String?,
         role: String?,
-        quota: dev.zipshare.data.net.QuotaBody?,
+        quota: QuotaBody?,
     ) -> Unit,
     onDelete: (alsoContent: Boolean) -> Unit,
 ) {
@@ -484,7 +475,7 @@ private fun EditUserDialog(
         confirmEnabled = username.isNotBlank(),
         onConfirm = {
             val quota = if (maxBytes.isNotBlank() || maxFiles.isNotBlank() || maxUrls.isNotBlank()) {
-                dev.zipshare.data.net.QuotaBody(
+                QuotaBody(
                     filesType = if (maxBytes.isNotBlank()) "BY_BYTES" else "BY_FILES",
                     maxBytes = maxBytes.trim().takeIf { it.isNotEmpty() },
                     maxFiles = maxFiles.toIntOrNull(),
@@ -571,7 +562,7 @@ private fun EditUserDialog(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CreateFolderDialog(
-    existing: List<dev.zipshare.data.net.ZFolder>,
+    existing: List<ZFolder>,
     onDismiss: () -> Unit,
     onCreate: (name: String, isPublic: Boolean, parentId: String?) -> Unit,
 ) {

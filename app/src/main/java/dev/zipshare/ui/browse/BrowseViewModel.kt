@@ -15,7 +15,6 @@ import dev.zipshare.data.net.CreateUrlBody
 import dev.zipshare.data.net.CreateUserBody
 import dev.zipshare.data.net.DeleteFolderBody
 import dev.zipshare.data.net.DeleteUserBody
-import dev.zipshare.data.net.ErrorAction
 import dev.zipshare.data.net.PatchFolderBody
 import dev.zipshare.data.net.PatchUserBody
 import dev.zipshare.data.net.QuotaBody
@@ -31,9 +30,10 @@ import dev.zipshare.data.net.ZFolder
 import dev.zipshare.data.net.ZLimitedUser
 import dev.zipshare.data.net.ZUrl
 import dev.zipshare.data.net.ZUser
+import dev.zipshare.data.net.ZiplineApi
 import dev.zipshare.data.net.ZiplineClients
-import dev.zipshare.data.net.ZiplineException
 import dev.zipshare.data.net.unwrap
+import dev.zipshare.ui.callActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -417,30 +417,8 @@ class BrowseViewModel @Inject constructor(
         _state.value = _state.value.copy(urls = _state.value.urls.filterNot { it.id == url.id })
     }
 
-    private fun launchWithProfile(block: suspend (api: dev.zipshare.data.net.ZiplineApi, p: Profile) -> Unit) {
-        viewModelScope.launch {
-            profiles.awaitReady()
-            val active = profiles.activeNow()
-            if (active == null) {
-                _state.value = _state.value.copy(error = "No server selected.", loading = false)
-                return@launch
-            }
-            _state.value = _state.value.copy(loading = true, error = null)
-            runCatching { block(clients.api(active), active) }
-                .onSuccess { _state.value = _state.value.copy(loading = false) }
-                .onFailure { e ->
-                    // Browsing a folder that vanished is not a reason to touch upload defaults;
-                    // the error message is surfaced and that is enough here.
-                    if (e is ZiplineException && e.action == ErrorAction.REAUTH) {
-                        profiles.markUnauthenticated(active.id)
-                    }
-                    _state.value = _state.value.copy(
-                        loading = false,
-                        error = (e as? ZiplineException)?.display ?: e.message ?: "Request failed",
-                    )
-                }
-        }
-    }
+    private fun launchWithProfile(block: suspend (api: ZiplineApi, p: Profile) -> Unit) =
+        _state.callActive(viewModelScope, profiles, clients, { l, e -> copy(loading = l, error = e) }, block)
 
     companion object {
         private const val PER_PAGE = 24

@@ -11,9 +11,9 @@ import dev.zipshare.data.net.ZUser
 import dev.zipshare.data.net.ZView
 import dev.zipshare.data.net.ZiplineApi
 import dev.zipshare.data.net.ZiplineClients
-import dev.zipshare.data.net.ZiplineException
 import dev.zipshare.data.net.unwrap
 import dev.zipshare.log.AppLog
+import dev.zipshare.ui.userMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -92,7 +92,7 @@ class AccountViewModel @Inject constructor(
             .onFailure { e ->
                 _state.value = _state.value.copy(
                     busy = false,
-                    message = (e as? ZiplineException)?.display ?: e.message ?: "Could not refresh",
+                    message = e.userMessage("Could not refresh"),
                 )
             }
     }
@@ -122,7 +122,7 @@ class AccountViewModel @Inject constructor(
             onFailure = { e ->
                 _state.value = _state.value.copy(
                     busy = false,
-                    message = (e as? ZiplineException)?.display ?: e.message ?: "Request failed",
+                    message = e.userMessage(),
                 )
             },
         )
@@ -167,9 +167,7 @@ class AccountViewModel @Inject constructor(
             onSuccess = { _state.value = _state.value.copy(sessions = it) },
             onFailure = { e ->
                 _state.value = _state.value.copy(
-                    sessionsError = (e as? ZiplineException)?.display
-                        ?: e.message
-                        ?: "Could not load sessions",
+                    sessionsError = e.userMessage("Could not load sessions"),
                 )
             },
         )
@@ -188,7 +186,7 @@ class AccountViewModel @Inject constructor(
             onFailure = { e ->
                 _state.value = _state.value.copy(
                     busy = false,
-                    message = (e as? ZiplineException)?.display ?: e.message ?: "Request failed",
+                    message = e.userMessage(),
                 )
             },
         )

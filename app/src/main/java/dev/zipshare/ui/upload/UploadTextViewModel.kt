@@ -14,6 +14,7 @@ import dev.zipshare.data.net.ZiplineClients
 import dev.zipshare.data.net.ZiplineException
 import dev.zipshare.data.net.unwrap
 import dev.zipshare.data.prefs.SettingsStore
+import dev.zipshare.ui.userMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -130,7 +131,7 @@ class UploadTextViewModel @Inject constructor(
                 }
                 _state.value = _state.value.copy(
                     uploading = false,
-                    error = (e as? ZiplineException)?.display ?: e.message ?: "Upload failed",
+                    error = e.userMessage("Upload failed"),
                 )
             }
         }

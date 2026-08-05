@@ -15,6 +15,7 @@ import dev.zipshare.data.net.ZiplineClients
 import dev.zipshare.data.net.ZiplineException
 import dev.zipshare.data.net.unwrap
 import dev.zipshare.data.prefs.SecureStore
+import dev.zipshare.ui.userMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -375,7 +376,7 @@ class ServersViewModel @Inject constructor(
                         authMode = AuthMode.PASSWORD,
                         password = "",
                         signInError = "Account \"$name\" was created, but signing in failed: " +
-                            ((e as? ZiplineException)?.display ?: e.message ?: "unknown error") +
+                            e.userMessage("unknown error") +
                             ". Enter your password and press Sign in.",
                     )
                 },

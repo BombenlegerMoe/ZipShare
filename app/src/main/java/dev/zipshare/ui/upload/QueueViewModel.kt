@@ -61,8 +61,16 @@ class QueueViewModel @Inject constructor(
         workManager.cancelAllWorkByTag(UploadEnqueuer.TAG)
     }
 
-    /** Drops finished work from WorkManager's own database, which is what clears failed rows. */
-    fun clearFinished() {
+    /**
+     * Leaving the screen drops the failed rows, which is what the "Clear failed" button used to do
+     * by hand. Pruning only touches finished work, so anything still running or queued survives,
+     * and the failure notification remains the record that outlives the screen.
+     *
+     * Not on entry: a failure that happened while another screen was open would be pruned before it
+     * was ever shown. Not from a DisposableEffect either - that fires on rotation, which is not
+     * leaving. The back stack entry (and so this ViewModel) dies only when the screen really goes.
+     */
+    override fun onCleared() {
         workManager.pruneWork()
     }
 

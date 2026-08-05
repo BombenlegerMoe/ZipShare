@@ -7,15 +7,14 @@ import dev.zipshare.data.ProfileRepository
 import dev.zipshare.data.model.Profile
 import dev.zipshare.data.net.ApiStats
 import dev.zipshare.data.net.CreateInviteBody
-import dev.zipshare.data.net.ErrorAction
 import dev.zipshare.data.net.RequerySizeBody
 import dev.zipshare.data.net.ThumbnailsBody
 import dev.zipshare.data.net.ZInvite
 import dev.zipshare.data.net.ZeroFile
 import dev.zipshare.data.net.ZiplineApi
 import dev.zipshare.data.net.ZiplineClients
-import dev.zipshare.data.net.ZiplineException
 import dev.zipshare.data.net.unwrap
+import dev.zipshare.ui.callActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -242,27 +241,12 @@ class AdminViewModel @Inject constructor(
             )
         }.sortedWith(compareBy({ it.group }, { it.key }))
 
-    private fun call(block: suspend (ZiplineApi) -> Unit) {
-        viewModelScope.launch {
-            profiles.awaitReady()
-            val active = profiles.activeNow()
-            if (active == null) {
-                _state.value = _state.value.copy(error = "No server selected.", loading = false)
-                return@launch
-            }
-            _state.value = _state.value.copy(loading = true, error = null)
-            runCatching { block(clients.api(active)) }
-                .onSuccess { _state.value = _state.value.copy(loading = false) }
-                .onFailure { e ->
-                    if (e is ZiplineException && e.action == ErrorAction.REAUTH) {
-                        profiles.markUnauthenticated(active.id)
-                    }
-                    _state.value = _state.value.copy(
-                        loading = false,
-                        saving = false,
-                        error = (e as? ZiplineException)?.display ?: e.message ?: "Request failed",
-                    )
-                }
-        }
-    }
+    /** `saving && l` releases the save spinner on any ending, which only the failure path did. */
+    private fun call(block: suspend (ZiplineApi) -> Unit) =
+        _state.callActive(
+            viewModelScope,
+            profiles,
+            clients,
+            { l, e -> copy(loading = l, error = e, saving = saving && l) },
+        ) { api, _ -> block(api) }
 }

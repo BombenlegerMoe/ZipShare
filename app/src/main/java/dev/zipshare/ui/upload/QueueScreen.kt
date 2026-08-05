@@ -1,9 +1,7 @@
 package dev.zipshare.ui.upload
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -38,13 +36,15 @@ import dev.zipshare.ui.shell.ShellTopBar
  * the file from zero - so a "pause" would be a resume that silently re-uploads everything. There is
  * no retry button either: a run that fails for good gives up its staged copy and its password on
  * the way out (deliberately, so neither lingers on disk), which leaves nothing to retry from.
+ *
+ * There is no "Clear failed" button, because failed rows are not something to tidy up: they are
+ * read here and then dropped when the screen is left. See [QueueViewModel.onCleared].
  */
 @Composable
 fun QueueScreen(onMenu: () -> Unit, vm: QueueViewModel = hiltViewModel()) {
     val rows by vm.rows.collectAsStateWithLifecycle()
     val profiles by vm.profiles.collectAsStateWithLifecycle()
     val active by vm.active.collectAsStateWithLifecycle()
-    val anyFailed = rows.any { it.failed }
     val anyPending = rows.any { !it.failed }
 
     Scaffold(
@@ -64,18 +64,13 @@ fun QueueScreen(onMenu: () -> Unit, vm: QueueViewModel = hiltViewModel()) {
                 return@Column
             }
 
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (anyPending) {
-                    TextButton(onClick = vm::cancelAll) { Text("Cancel all") }
-                }
-                if (anyFailed) {
-                    TextButton(onClick = vm::clearFinished) { Text("Clear failed") }
-                }
+            if (anyPending) {
+                TextButton(
+                    onClick = vm::cancelAll,
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                ) { Text("Cancel all") }
+                HorizontalDivider()
             }
-            HorizontalDivider()
 
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
                 items(rows, key = { it.id }) { row ->
