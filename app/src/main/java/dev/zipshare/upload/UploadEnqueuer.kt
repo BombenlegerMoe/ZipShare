@@ -59,12 +59,17 @@ class UploadEnqueuer @Inject constructor(
              * Server-side compression stripped for anything already re-encoded here: letting
              * Zipline compress it again would be a second lossy pass that saves nothing, since the
              * bytes have already been shrunk before they left the device.
+             *
+             * Lazy because compression is off by default, and encoding this for every upload that
+             * will never read it is pure waste on the path the share target blocks on.
              */
-            val optionsJsonCompressed = json.encodeToString(
-                UploadOptions.serializer(),
-                (if (secretId == null) options else options.copy(password = null))
-                    .copy(compressionType = null, compressionPercent = null),
-            )
+            val optionsJsonCompressed by lazy {
+                json.encodeToString(
+                    UploadOptions.serializer(),
+                    (if (secretId == null) options else options.copy(password = null))
+                        .copy(compressionType = null, compressionPercent = null),
+                )
+            }
 
             val requests = uris.map { original ->
                 // Resolve name/type from the ORIGINAL content uri, where the ContentResolver still
@@ -91,37 +96,38 @@ class UploadEnqueuer @Inject constructor(
                 // Staging happens here, while the caller's uri grant is still alive. Anything
                 // large enough to take the chunked path is staged even if the grant would have
                 // survived, so the per-chunk seek lands on a real file rather than a pipe.
-                val (uri, staged) = if (compressed != null) {
-                    // Already a plain file in our own cache, and the worker must delete it after.
-                    Uri.fromFile(compressed) to true
+                //
+                // One branch, not four: everything that differs for a re-encoded file is decided
+                // together, so a future field cannot be set for the compressed case and forgotten
+                // for the plain one.
+                val prepared = if (compressed != null) {
+                    Prepared(
+                        // Already a plain file in our own cache, and the worker must delete it after.
+                        uri = Uri.fromFile(compressed),
+                        staged = true,
+                        name = ImageCompressor.renameForFormat(meta.name, cfg.deviceCompressionFormat),
+                        mime = ImageCompressor.mimeForFormat(cfg.deviceCompressionFormat),
+                        optionsJson = optionsJsonCompressed,
+                    )
                 } else {
-                    UploadInput.stageIfNeeded(
+                    val (uri, staged) = UploadInput.stageIfNeeded(
                         context,
                         original,
                         forSeeking = meta.size > partialThreshold,
                     )
-                }
-                val name = if (compressed != null) {
-                    ImageCompressor.renameForFormat(meta.name, cfg.deviceCompressionFormat)
-                } else {
-                    meta.name
-                }
-                val mime = if (compressed != null) {
-                    ImageCompressor.mimeForFormat(cfg.deviceCompressionFormat)
-                } else {
-                    meta.mime
+                    Prepared(uri, staged, meta.name, meta.mime, optionsJson)
                 }
 
                 OneTimeWorkRequestBuilder<UploadWorker>()
                     .setInputData(
                         UploadWorker.inputFor(
-                            uri,
+                            prepared.uri,
                             profileId,
-                            if (compressed != null) optionsJsonCompressed else optionsJson,
-                            staged,
+                            prepared.optionsJson,
+                            prepared.staged,
                             secretId,
-                            name,
-                            mime,
+                            prepared.name,
+                            prepared.mime,
                         ),
                     )
                     .setConstraints(
@@ -132,7 +138,7 @@ class UploadEnqueuer @Inject constructor(
                     .addTag(workName)
                     // The queue screen has no other way to name a file that has not started yet:
                     // WorkInfo exposes tags, progress and output, but never the input data.
-                    .addTag("$NAME_TAG${name.take(120)}")
+                    .addTag("$NAME_TAG${prepared.name.take(120)}")
                     .build()
             }
 
@@ -148,6 +154,15 @@ class UploadEnqueuer @Inject constructor(
         }
 
     fun cancel(workName: String) = workManager.cancelUniqueWork(workName)
+
+    /** What one file will be uploaded as, once compression and staging have both had their say. */
+    private data class Prepared(
+        val uri: Uri,
+        val staged: Boolean,
+        val name: String,
+        val mime: String,
+        val optionsJson: String,
+    )
 
     companion object {
         const val TAG = "zipshare-upload"

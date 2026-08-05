@@ -60,7 +60,9 @@ object UploadInput {
 
         val mimeMap = MimeTypeMap.getSingleton()
         val extension = mimeMap.getExtensionFromMimeType(mime)
-        val fileName = ensureExtension(resolved ?: uri.lastPathSegment ?: "upload", extension) {
+        // `resolved` already falls back to lastPathSegment, so it is null only when the uri has no
+        // path segment either.
+        val fileName = ensureExtension(resolved ?: "upload", extension) {
             mimeMap.getMimeTypeFromExtension(it).equals(mime, ignoreCase = true)
         }
         return FileMeta(fileName, size, mime)

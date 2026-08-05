@@ -23,6 +23,32 @@ class SharedLinkTest {
         assertEquals("https://example.com", sharedLink("Page Title\nhttps://example.com"))
     }
 
+    /**
+     * A trailing full stop belongs to the sentence, not the url - shortening it produces a
+     * destination that 404s for everyone who follows the link.
+     */
+    @Test
+    fun `sentence punctuation is not part of the link`() {
+        assertEquals("https://example.com/page", sharedLink("have a look at https://example.com/page."))
+        assertEquals("https://example.com", sharedLink("https://example.com,"))
+        assertEquals("https://example.com", sharedLink("\"https://example.com\""))
+    }
+
+    /** Wikipedia's disambiguation links really do end in a bracket, so those must survive. */
+    @Test
+    fun `a bracket the link opened is kept`() {
+        assertEquals(
+            "https://en.wikipedia.org/wiki/Mercury_(planet)",
+            sharedLink("https://en.wikipedia.org/wiki/Mercury_(planet)"),
+        )
+    }
+
+    /** ...but one it never opened belongs to the sentence. */
+    @Test
+    fun `a bracket the link did not open is dropped`() {
+        assertEquals("https://example.com", sharedLink("see it here (https://example.com)"))
+    }
+
     @Test
     fun `http is accepted, not just https`() {
         assertEquals("http://10.0.0.5:3000/x", sharedLink("http://10.0.0.5:3000/x"))

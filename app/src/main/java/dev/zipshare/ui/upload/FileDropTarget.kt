@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -16,11 +17,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.draganddrop.toAndroidDragEvent
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.zipshare.ui.findActivity
-import androidx.compose.foundation.shape.RoundedCornerShape
 
 /**
  * Accepts files dragged in from another app - split screen, freeform windows, or a desktop-mode
@@ -33,24 +32,35 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun Modifier.fileDropTarget(onDropped: (List<Uri>) -> Unit): Modifier {
-    val activity = LocalContext.current.findActivity() ?: return this
+    // Every remember below runs unconditionally. Returning early on a null activity would make the
+    // number of slots this composable claims depend on a runtime value, which corrupts the slot
+    // table if the same call site ever composes both ways.
+    val activity by rememberUpdatedState(LocalContext.current.findActivity())
     val latest by rememberUpdatedState(onDropped)
     var hovered by remember { mutableStateOf(false) }
 
     val target = remember {
         object : DragAndDropTarget {
             override fun onDrop(event: DragAndDropEvent): Boolean {
-                val android = event.toAndroidDragEvent()
+                val host = activity ?: return false
+                val dragEvent = event.toAndroidDragEvent()
 
                 // Without this the uris are readable-looking but every open() throws: a cross-app
                 // drag grants nothing until the receiving activity claims it.
                 val granted = runCatching {
-                    activity.requestDragAndDropPermissions(android)
+                    host.requestDragAndDropPermissions(dragEvent)
                 }.getOrNull()
 
-                val clip = android.clipData ?: return false
-                val uris = (0 until clip.itemCount).mapNotNull { clip.getItemAt(it)?.uri }
-                if (uris.isEmpty() || granted == null) return false
+                val uris = dragEvent.clipData?.let { clip ->
+                    (0 until clip.itemCount).mapNotNull { clip.getItemAt(it)?.uri }
+                }.orEmpty()
+
+                if (uris.isEmpty() || granted == null) {
+                    // Hand the grant straight back rather than holding it until this activity dies:
+                    // nothing here is going to read it.
+                    granted?.release()
+                    return false
+                }
 
                 latest(uris)
                 return true
@@ -67,10 +77,10 @@ fun Modifier.fileDropTarget(onDropped: (List<Uri>) -> Unit): Modifier {
     return this
         .dragAndDropTarget(shouldStartDragAndDrop = { it.carriesFiles() }, target = target)
         .then(
+            // Border only, no clip: clipping here would round and crop the whole page for as long
+            // as the drag hovers, which reads as a rendering glitch.
             if (hovered) {
-                Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
+                Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
             } else {
                 Modifier
             },
@@ -81,8 +91,8 @@ fun Modifier.fileDropTarget(onDropped: (List<Uri>) -> Unit): Modifier {
  * Text drags (a selection from a browser, say) are refused: this target uploads files, and lighting
  * it up for something it would then reject is worse than staying dark.
  */
-private fun DragAndDropEvent.carriesFiles(): Boolean =
-    toAndroidDragEvent().clipDescription?.hasMimeType(ClipDescription.MIMETYPE_TEXT_URILIST) == true ||
-        toAndroidDragEvent().clipDescription?.let { d ->
-            (0 until d.mimeTypeCount).any { !d.getMimeType(it).startsWith("text/") }
-        } == true
+private fun DragAndDropEvent.carriesFiles(): Boolean {
+    val description = toAndroidDragEvent().clipDescription ?: return false
+    if (description.hasMimeType(ClipDescription.MIMETYPE_TEXT_URILIST)) return true
+    return (0 until description.mimeTypeCount).any { !description.getMimeType(it).startsWith("text/") }
+}

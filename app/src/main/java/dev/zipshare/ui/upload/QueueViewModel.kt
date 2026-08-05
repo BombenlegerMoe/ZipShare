@@ -50,7 +50,7 @@ class QueueViewModel @Inject constructor(
 
     val rows: StateFlow<List<QueueRow>> = workManager
         .getWorkInfosByTagFlow(UploadEnqueuer.TAG)
-        .map { infos -> infos.filter { it.state in SHOWN }.map { it.toRow() }.sortedBy { ORDER.indexOf(it.state) } }
+        .map { infos -> infos.filter { it.state in ORDER }.map { it.toRow() }.sortedBy { ORDER.indexOf(it.state) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun cancel(id: UUID) {
@@ -82,15 +82,12 @@ class QueueViewModel @Inject constructor(
 
     private companion object {
         /**
-         * Succeeded uploads are already on Home under "On this device", and cancelled ones are
-         * gone on purpose - repeating either here would just be a second list to dismiss.
+         * Both the filter and the sort order - one list, so a state cannot be added to one and
+         * forgotten in the other (which would either hide the row or sort it above running uploads).
+         *
+         * Succeeded uploads are already on Home under "On this device", and cancelled ones are gone
+         * on purpose - repeating either here would just be a second list to dismiss.
          */
-        val SHOWN = setOf(
-            WorkInfo.State.RUNNING,
-            WorkInfo.State.ENQUEUED,
-            WorkInfo.State.BLOCKED,
-            WorkInfo.State.FAILED,
-        )
         val ORDER = listOf(
             WorkInfo.State.RUNNING,
             WorkInfo.State.ENQUEUED,
