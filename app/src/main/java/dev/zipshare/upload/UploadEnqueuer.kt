@@ -140,6 +140,9 @@ class UploadEnqueuer @Inject constructor(
                     // The queue screen has no other way to name a file that has not started yet:
                     // WorkInfo exposes tags, progress and output, but never the input data.
                     .addTag("$NAME_TAG${prepared.name.take(120)}")
+                    // Same reason: which server this upload is going to is in the input data,
+                    // which the queue cannot read, so it has to ride along as a tag.
+                    .addTag(profileTag(profileId))
                     .build()
             }
 
@@ -168,6 +171,13 @@ class UploadEnqueuer @Inject constructor(
     companion object {
         const val TAG = "zipshare-upload"
         const val NAME_TAG = "name:"
+        private const val PROFILE_TAG = "profile:"
         private const val WORK_PREFIX = "upload:"
+
+        fun profileTag(profileId: String) = "$PROFILE_TAG$profileId"
+
+        /** Null for work enqueued before uploads carried a profile tag. */
+        fun profileOf(tags: Set<String>): String? =
+            tags.firstOrNull { it.startsWith(PROFILE_TAG) }?.removePrefix(PROFILE_TAG)
     }
 }

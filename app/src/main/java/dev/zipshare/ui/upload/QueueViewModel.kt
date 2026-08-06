@@ -11,7 +11,7 @@ import dev.zipshare.upload.UploadEnqueuer
 import dev.zipshare.upload.UploadWorker
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import java.util.UUID
 import javax.inject.Inject
@@ -48,17 +48,38 @@ class QueueViewModel @Inject constructor(
 
     fun selectProfile(id: String) = profileRepo.setActive(id)
 
-    val rows: StateFlow<List<QueueRow>> = workManager
-        .getWorkInfosByTagFlow(UploadEnqueuer.TAG)
-        .map { infos -> infos.filter { it.state in ORDER }.map { it.toRow() }.sortedBy { ORDER.indexOf(it.state) } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /**
+     * Scoped to the active server, because the top bar names one server and the list has to mean
+     * that one. Every upload carries its profile as a tag, so the filter reads the same tag the
+     * enqueuer wrote.
+     */
+    val rows: StateFlow<List<QueueRow>> = combine(
+        workManager.getWorkInfosByTagFlow(UploadEnqueuer.TAG),
+        active,
+    ) { infos, profile ->
+        infos.filter { it.state in ORDER && it.belongsTo(profile?.id) }
+            .map { it.toRow() }
+            .sortedBy { ORDER.indexOf(it.state) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * Work enqueued before uploads carried a profile tag has no owner. It is shown under whichever
+     * server is active rather than hidden: an upload nobody can see is also one nobody can cancel.
+     */
+    private fun WorkInfo.belongsTo(profileId: String?): Boolean =
+        UploadEnqueuer.profileOf(tags)?.let { it == profileId } ?: true
 
     fun cancel(id: UUID) {
         workManager.cancelWorkById(id)
     }
 
+    /**
+     * Cancels what the list shows, by id, rather than everything wearing the upload tag - which
+     * would have taken the other servers' uploads with it. Cancelling one member of a chain
+     * cancels the files queued behind it, and a row already in a terminal state is a no-op.
+     */
     fun cancelAll() {
-        workManager.cancelAllWorkByTag(UploadEnqueuer.TAG)
+        rows.value.forEach { workManager.cancelWorkById(it.id) }
     }
 
     /**
@@ -69,6 +90,11 @@ class QueueViewModel @Inject constructor(
      * Not on entry: a failure that happened while another screen was open would be pruned before it
      * was ever shown. Not from a DisposableEffect either - that fires on rotation, which is not
      * leaving. The back stack entry (and so this ViewModel) dies only when the screen really goes.
+     *
+     * Unlike the list, this is not scoped to the active server: WorkManager prunes all finished
+     * work or none, there being no prune-by-tag. So leaving the queue also drops another server's
+     * failed rows before they were read. Their notifications still fired, which is the reason that
+     * is tolerable - and the reason to fix it properly if a per-server record is ever wanted.
      */
     override fun onCleared() {
         workManager.pruneWork()
