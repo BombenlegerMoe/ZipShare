@@ -91,10 +91,15 @@ class AppSearchTest {
         assertEquals(anchors.size, anchors.distinct().size)
     }
 
-    /** A duplicate title reads as the same result listed twice. */
+    /**
+     * A duplicate reads as the same result listed twice - but only when [SearchEntry.where] matches
+     * too. Two settings genuinely share the name "Image compression": one re-encodes on this
+     * device, the other is the instance's own. Both have to be findable, and the line under the
+     * title is exactly what tells them apart.
+     */
     @Test
-    fun `no two entries share a title`() {
-        val titles = appSearchIndex.map { it.title }
-        assertEquals(titles.size, titles.distinct().size)
+    fun `no two entries share a title in the same place`() {
+        val labels = appSearchIndex.map { it.title to it.where }
+        assertEquals(labels.size, labels.distinct().size)
     }
 }

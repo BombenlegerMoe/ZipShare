@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Link
@@ -58,6 +59,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import dev.zipshare.ui.Routes
+import dev.zipshare.ui.admin.groupTitle
+import dev.zipshare.ui.admin.settingLabel
 import dev.zipshare.ui.shell.LocalIsAdmin
 import dev.zipshare.ui.shell.LocalNavigate
 
@@ -87,6 +90,45 @@ val SearchEntry.destination: String
     get() = if (anchor == null) route else "$route?focus=$anchor"
 
 /**
+ * The admin server-settings form builds its rows from whatever JSON the instance returns, so there
+ * is no literal in the sources to find and no [dev.zipshare.ui.FocusTarget] to jump to - which is
+ * why every one of these was invisible to search while the settings screens were covered.
+ *
+ * Titles are derived with [settingLabel], the same function the screen labels its rows with, so a
+ * change to the label rule moves both together. Keys an older instance does not serve simply never
+ * match a row that exists; guessing high costs a dead search result, guessing low costs a setting
+ * nobody can find.
+ */
+private val SERVER_SETTING_KEYS = listOf(
+    "coreReturnHttpsUrls", "coreDefaultDomain", "coreTempDirectory",
+    "filesRoute", "filesLength", "filesDefaultFormat", "filesDisabledExtensions",
+    "filesMaxFileSize", "filesDefaultExpiration", "filesAssumeMimetypes", "filesRemoveGpsMetadata",
+    "featuresImageCompression", "featuresRobotsTxt", "featuresHealthcheck",
+    "featuresUserRegistration", "featuresOauthRegistration", "featuresDeleteOnMaxViews",
+    "featuresMetricsEnabled", "featuresMetricsAdminOnly", "featuresThumbnailsEnabled",
+    "invitesEnabled", "invitesLength",
+    "ratelimitEnabled", "ratelimitMax",
+    "websiteTitle", "websiteExternalLinks",
+    "chunksEnabled", "chunksMax", "chunksSize",
+    "tasksDeleteInterval", "tasksMetricsInterval",
+)
+
+private val serverSettingEntries: List<SearchEntry> = SERVER_SETTING_KEYS.map { key ->
+    val group = key.takeWhile { it.isLowerCase() }
+    SearchEntry(
+        title = settingLabel(key, group),
+        where = "Server settings > ${groupTitle(group)}",
+        route = Routes.ADMIN_SETTINGS,
+        icon = Icons.Filled.Tune,
+        // The raw key, so someone reading Zipline's own docs or a config file finds the row.
+        keywords = listOf(key.lowercase()),
+        adminOnly = true,
+        // The key doubles as the anchor: the screen opens the group holding it and flashes the row.
+        anchor = key,
+    )
+}
+
+/**
  * Everything reachable in the app, flattened.
  *
  * Hand-written rather than derived from the UI: the settings screens build their rows inline, so
@@ -109,12 +151,43 @@ val appSearchIndex: List<SearchEntry> = listOf(
     SearchEntry("Server actions", "Administrator", Routes.ADMIN_ACTIONS, Icons.Filled.Bolt, listOf("clear temp", "zero files", "requery size", "thumbnails", "maintenance"), adminOnly = true),
     SearchEntry("Server settings", "Administrator", Routes.ADMIN_SETTINGS, Icons.Filled.Tune, listOf("instance settings", "core", "chunks", "discord", "oauth", "ratelimit", "tasks", "website", "features"), adminOnly = true),
 
+    // --- actions ---
+    // Things you *do* rather than places you go. They have no anchor because they live in
+    // toolbars, menus and sheets rather than in a settings row, so these land on the screen that
+    // owns the action and stop there.
+    SearchEntry("Favourites", "Files", Routes.FILES, Icons.AutoMirrored.Filled.InsertDriveFile, listOf("favourite", "favorite", "starred", "star", "favourites only")),
+    SearchEntry("Select and move files", "Files", Routes.FILES, Icons.AutoMirrored.Filled.InsertDriveFile, listOf("selection", "select all", "bulk", "multiple", "move to folder", "delete several", "organise", "organize")),
+    SearchEntry("Tags", "Files", Routes.FILES, Icons.AutoMirrored.Filled.InsertDriveFile, listOf("tag", "label", "colour", "color", "rename tag")),
+    SearchEntry("Sort and search files", "Files", Routes.FILES, Icons.AutoMirrored.Filled.InsertDriveFile, listOf("sort", "order", "newest", "oldest", "find a file", "search files", "filter")),
+    SearchEntry("Grid or list view", "Files", Routes.FILES, Icons.Filled.GridView, listOf("grid", "list", "thumbnails", "layout", "view")),
+    // The account menu hangs off the avatar in the Home top bar, so Home is where these are.
+    SearchEntry("Refresh token", "Account menu", Routes.HOME, Icons.Filled.AccountCircle, listOf("regenerate token", "new token", "rotate", "revoke token", "copy token")),
+    SearchEntry("Sign out", "Account menu", Routes.HOME, Icons.Filled.AccountCircle, listOf("log out", "logout", "forget server")),
+    // Both live in the server editor, whose route needs a server id - so search stops at the list,
+    // one tap short, rather than pointing at a destination it cannot build.
+    SearchEntry("Allow cleartext (http://)", "Servers", Routes.SERVERS, Icons.Filled.Dns, listOf("cleartext", "http", "insecure", "plain http", "no tls")),
+    SearchEntry("Sign in with an invite", "Servers", Routes.SERVERS, Icons.Filled.Dns, listOf("invite", "register", "create account", "sign up", "username and password")),
+
     // --- account ---
     SearchEntry("Avatar", "Account settings", Routes.ACCOUNT, Icons.Filled.AccountCircle, listOf("profile picture", "photo"), anchor = "avatar"),
     SearchEntry("Change username", "Account settings", Routes.ACCOUNT, Icons.Filled.AccountCircle, listOf("rename", "name"), anchor = "username"),
     SearchEntry("Change password", "Account settings", Routes.ACCOUNT, Icons.Filled.AccountCircle, listOf("credentials"), anchor = "password"),
     SearchEntry("Logged-in devices", "Account settings", Routes.ACCOUNT, Icons.Filled.AccountCircle, listOf("sessions", "sign out others", "revoke"), anchor = "sessions"),
-    SearchEntry("Viewing files", "Account settings", Routes.ACCOUNT, Icons.Filled.AccountCircle, listOf("embed", "opengraph", "preview", "discord embed", "view page"), anchor = "viewing"),
+    // The six toggles inside this section cannot be entries of their own - they share one
+    // FocusTarget, and two entries on one anchor send search to whichever row registered last.
+    // So their words live here, and the jump lands on the section that holds them.
+    SearchEntry(
+        "Viewing files",
+        "Account settings",
+        Routes.ACCOUNT,
+        Icons.Filled.AccountCircle,
+        listOf(
+            "embed", "opengraph", "preview", "discord embed", "view page",
+            "mimetype", "mime type", "content type",
+            "show folder", "show tags", "text files", "raw text", "view routes",
+        ),
+        anchor = "viewing",
+    ),
 
     // --- app settings ---
     SearchEntry("App lock", "Settings > Security", Routes.SETTINGS, Icons.Filled.Lock, listOf("biometric", "fingerprint", "face", "pin", "device credential", "lock"), anchor = "app_lock"),
@@ -169,7 +242,7 @@ val appSearchIndex: List<SearchEntry> = listOf(
         listOf("export servers", "import servers", "move to new device", "migrate", "tokens", "encrypted backup", "restore"),
         anchor = "servers_backup",
     ),
-)
+) + serverSettingEntries
 
 /**
  * Ranked match over [entries]. Kept pure - no Compose, no Android - so the ranking can be tested.

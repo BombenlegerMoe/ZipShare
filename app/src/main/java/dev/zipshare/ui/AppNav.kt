@@ -229,7 +229,12 @@ fun AppNav(startAction: String? = null) {
             composable(Routes.METRICS) { MetricsScreen(onMenu = openMenu) }
             composable(Routes.QUEUE) { QueueScreen(onMenu = openMenu) }
             composable(Routes.UPLOAD_TEXT) { UploadTextScreen(onMenu = openMenu) }
-            composable(Routes.ADMIN_SETTINGS) { ServerSettingsScreen(onMenu = openMenu) }
+            composable(
+                "${Routes.ADMIN_SETTINGS}?focus={focus}",
+                arguments = listOf(navArgument("focus") { nullable = true; defaultValue = null }),
+            ) { entry ->
+                ServerSettingsScreen(onMenu = openMenu, focus = entry.arguments?.getString("focus"))
+            }
             composable(Routes.ADMIN_ACTIONS) { ServerActionsScreen(onMenu = openMenu) }
             composable(Routes.INVITES) { InvitesScreen(onMenu = openMenu) }
             composable(Routes.SERVERS) {

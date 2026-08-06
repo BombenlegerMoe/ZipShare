@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -43,6 +44,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.zipshare.ui.FocusTarget
 import dev.zipshare.ui.shell.EmptyOrError
 import dev.zipshare.ui.shell.PullRefresh
 import dev.zipshare.ui.shell.ShellTopBar
@@ -53,10 +55,38 @@ import dev.zipshare.ui.shell.ShellTopBar
  * only the fields the user actually edits get PATCHed back.
  */
 @Composable
-fun ServerSettingsScreen(onMenu: () -> Unit, vm: AdminViewModel = hiltViewModel()) {
+fun ServerSettingsScreen(
+    onMenu: () -> Unit,
+    /** A setting key search wants opened; see the effect below. */
+    focus: String? = null,
+    vm: AdminViewModel = hiltViewModel(),
+) {
     val state by vm.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var confirmSave by remember { mutableStateOf(false) }
+
+    // Collapsed by default. Zipline returns ~100 keys across a dozen groups, which as one flat
+    // list is a wall of fields you have to scroll past to reach anything.
+    val expanded = remember { mutableStateMapOf<String, Boolean>() }
+    val listState = rememberLazyListState()
+
+    /**
+     * Search hands over the key of a row that lives inside a collapsed group, so the group has to
+     * be opened before there is a row to scroll to at all - a plain bringIntoView finds nothing,
+     * because a closed group never composes its children.
+     *
+     * Everything else closes on the way in, which is what keeps the arithmetic honest: with one
+     * group open, header i is item i, so the target group's position in the list *is* its index.
+     * Keyed on the settings count rather than the list, or editing a field would re-scroll on
+     * every keystroke.
+     */
+    LaunchedEffect(focus, state.settings.size) {
+        val target = focus ?: return@LaunchedEffect
+        val group = state.settings.firstOrNull { it.key == target }?.group ?: return@LaunchedEffect
+        expanded.clear()
+        expanded[group] = true
+        listState.animateScrollToItem(state.settings.map { it.group }.distinct().indexOf(group))
+    }
 
     LaunchedEffect(state.active?.id) { if (state.active != null) vm.loadServerSettings() }
     LaunchedEffect(state.error) { state.error?.let { snackbar.showSnackbar(it); vm.clearError() } }
@@ -103,11 +133,12 @@ fun ServerSettingsScreen(onMenu: () -> Unit, vm: AdminViewModel = hiltViewModel(
                 EmptyOrError("Could not read server settings. This needs a superadmin token.")
             } else {
                 val grouped = state.settings.groupBy { it.group }
-                // Collapsed by default. Zipline returns ~100 keys across a dozen groups, which as
-                // one flat list is a wall of fields you have to scroll past to reach anything.
-                val expanded = remember { mutableStateMapOf<String, Boolean>() }
 
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp)) {
+                LazyColumn(
+                    Modifier.fillMaxSize(),
+                    state = listState,
+                    contentPadding = PaddingValues(16.dp),
+                ) {
                     grouped.forEach { (group, entries) ->
                         val open = expanded[group] == true
                         item(key = "hdr-$group") {
@@ -129,10 +160,14 @@ fun ServerSettingsScreen(onMenu: () -> Unit, vm: AdminViewModel = hiltViewModel(
                         }
                         if (open) {
                             items(entries, key = { it.key }) { entry ->
-                                SettingRow(
-                                    entry = entry,
-                                    onChange = { vm.editSetting(entry.key, it) },
-                                )
+                                // spacing = 0: the row brings its own padding, and the wrapper's
+                                // default would space a single child away from nothing.
+                                FocusTarget(id = entry.key, focus = focus, spacing = 0.dp) {
+                                    SettingRow(
+                                        entry = entry,
+                                        onChange = { vm.editSetting(entry.key, it) },
+                                    )
+                                }
                             }
                         }
                     }
