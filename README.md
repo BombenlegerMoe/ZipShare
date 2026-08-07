@@ -26,7 +26,7 @@ encrypted storage and no telemetry of any kind.
 |:---:|:---:|:---:|
 | <img src="docs/screenshots/03-dashboard.png" width="230" alt="Dashboard"> | <img src="docs/screenshots/09-files-grid.png" width="230" alt="File grid"> | <img src="docs/screenshots/06-totp-setup.png" width="230" alt="TOTP enrollment with QR and authenticator hand-off"> |
 
-<sub><b>34 more screenshots</b> — open a section below.</sub>
+<sub><b>38 more screenshots</b> — open a section below.</sub>
 
 <details>
 <summary><b>Signing in &amp; your account</b> — sign-in, invite signup, servers, account menu, avatar, sessions, two-factor</summary>
@@ -47,9 +47,9 @@ encrypted storage and no telemetry of any kind.
 |:---:|:---:|:---:|
 | <img src="docs/screenshots/32-diagnostic.png" width="230" alt="Diagnostic page: history, logs, settings backup and import"> | <img src="docs/screenshots/33-server-version.png" width="230" alt="Zipline server version panel"> | <img src="docs/screenshots/34-sharing.png" width="230" alt="Link format: plain, markdown or view page"> |
 
-| Servers | Search | |
+| Servers | Search | Server backup |
 |:---:|:---:|:---:|
-| <img src="docs/screenshots/36-servers.png" width="230" alt="Server list with three profiles, each with its own URL and settings"> | <img src="docs/screenshots/36-search.png" width="230" alt="Searching every screen and setting from the dashboard"> | |
+| <img src="docs/screenshots/36-servers.png" width="230" alt="Server list with three profiles, each with its own URL and settings"> | <img src="docs/screenshots/37-app-search.png" width="230" alt="Searching every screen and setting from the dashboard"> | <img src="docs/screenshots/40-server-backup.png" width="230" alt="Password-encrypted export of every server and its token"> |
 
 </details>
 
@@ -68,14 +68,14 @@ encrypted storage and no telemetry of any kind.
 |:---:|:---:|:---:|
 | <img src="docs/screenshots/13-file-detail.png" width="230" alt="File detail sheet"> | <img src="docs/screenshots/14-tags.png" width="230" alt="Tag editor"> | <img src="docs/screenshots/15-password.png" width="230" alt="File password"> |
 
-| Per-format compression | | |
+| Per-format compression | On-device compression | |
 |:---:|:---:|:---:|
-| <img src="docs/screenshots/35-auto-compression.png" width="230" alt="Auto compression with separate JPEG and PNG quality"> | | |
+| <img src="docs/screenshots/35-auto-compression.png" width="230" alt="Auto compression with separate JPEG and PNG quality"> | <img src="docs/screenshots/38-device-compression.png" width="230" alt="Re-encoding to WebP or JPEG on the phone before uploading"> | |
 
 </details>
 
 <details>
-<summary><b>Viewing &amp; uploading</b> — images, video, text viewer and editor, folders</summary>
+<summary><b>Viewing &amp; uploading</b> — images, video, picture-in-picture, text viewer and editor, folders, the upload queue</summary>
 
 | Image viewer | Video player | Text viewer |
 |:---:|:---:|:---:|
@@ -84,6 +84,10 @@ encrypted storage and no telemetry of any kind.
 | Text editor | Upload text | Folders |
 |:---:|:---:|:---:|
 | <img src="docs/screenshots/28-text-editor.png" width="230" alt="Text editor"> | <img src="docs/screenshots/24-upload-text.png" width="230" alt="Upload text"> | <img src="docs/screenshots/17-folders.png" width="230" alt="Folders"> |
+
+| Upload queue | Picture-in-picture | |
+|:---:|:---:|:---:|
+| <img src="docs/screenshots/39-upload-queue.png" width="230" alt="Upload queue for the active server, with progress and cancel"> | <img src="docs/screenshots/41-picture-in-picture.png" width="230" alt="Video docked in a floating window over another app"> | |
 
 </details>
 
@@ -101,8 +105,9 @@ encrypted storage and no telemetry of any kind.
 </details>
 
 <sub>Screenshots are taken against the bundled mock server, so no real instance data appears. The
-two-factor screens normally set <code>FLAG_SECURE</code> and cannot be captured at all; it was
-lifted just long enough to screenshot them, and the secret shown is the mock's fixed test value.</sub>
+screens that show a credential — sign-in, the server editor and two-factor enrolment — set
+<code>FLAG_SECURE</code> and cannot be captured at all; it was lifted just long enough to
+photograph them, and the two-factor secret shown is the mock's fixed test value.</sub>
 
 </div>
 
@@ -148,7 +153,9 @@ lifted just long enough to screenshot them, and the secret shown is the mock's f
 - Share sheet (`ACTION_SEND` / `ACTION_SEND_MULTIPLE`, any MIME type), photo picker and file picker
 - Sharing a plain link shortens it instead of uploading it, and copies the short link
 - Drag files onto Home from another app in split screen
-- Upload queue screen: what is waiting, what is uploading, what failed - with cancel
+- Upload queue for the active server: what is waiting, what is uploading and what failed, with
+  cancel per file or for the lot. Failed entries clear themselves when you leave the screen — the
+  failure notification is the record that outlives them
 - Optional on-device re-encode to WebP or JPEG before upload, so the phone sends fewer bytes
 - Launcher shortcuts (long-press the icon) and a Quick Settings tile jump straight into an upload
 - Large files switch automatically to Zipline's resumable `/api/upload/partial` endpoint above a
@@ -191,6 +198,8 @@ lifted just long enough to screenshot them, and the secret shown is the mock's f
 - The dashboard reloads every time you return to it
 - **Video and audio play in the app**, streamed through the same authenticated connection as the
   API — the token stays in the header and never touches a media URL
+- **Picture-in-picture** pops a video into a floating window, so it keeps playing while you use
+  another app
 - **Animated GIF and WebP** play in the viewer, which loads the full file rather than the server's
   static thumbnail
 - Create folders (public or private, nested under an existing folder), drill into them, and edit
@@ -222,7 +231,12 @@ you there, so a setting you half-remember does not mean hunting through pages.
 
 It matches what you would actually type rather than only the exact label: "dark" finds **Theme**,
 "2fa" finds **Two-factor authentication**, "markdown" finds the **Sharing** link format. Admin-only
-destinations are hidden unless your account is one.
+destinations are hidden unless your account is one. The instance settings, the per-file actions and
+the viewing toggles are all indexed too, and picking one opens its group and highlights the row.
+
+The index is hand-written, so a test scans the sources for every anchored row and fails the build
+if one is missing from it — a setting that ships unreachable is a bug the build catches rather than
+something a reviewer has to notice.
 
 ### Multi-server
 
@@ -238,6 +252,11 @@ between a personal and a shared instance takes one tap rather than signing out a
 Profiles are managed from *Servers* in the navigation drawer; the first is created for you when
 you sign in, and the rest are added with the **+** button. Deleting one removes its stored token
 from the device.
+
+Moving to a new phone does not mean retyping tokens. *Diagnostic* exports every server — addresses,
+tokens, cleartext policy and pins — as a single file encrypted with a password you choose, and
+imports it on the other device. Importing merges rather than replaces, so a phone that already has
+servers keeps them; anything already present is matched on address and token and not duplicated.
 
 ### Sharing links
 
@@ -276,9 +295,15 @@ something. An on-device activity log (uploads, API errors, server switches — n
 passwords), encrypted at rest with a Keystore key and readable only by exporting it. A separate
 login log records lock/unlock events and can be exported from the lock screen itself, so being
 locked out does not lock you out of the access record. Alongside them: your upload history, a JSON
-backup of every app setting that can be exported and imported again — handy when moving to a new
-phone — and the Zipline version the server is running, with its commit and whether an update is
-available.
+backup of every app setting that can be exported and imported again, a separate password-encrypted
+export of your **servers and their tokens** for moving to a new phone, and the Zipline version the
+server is running, with its commit and whether an update is available.
+
+> [!NOTE]
+> The two backups are deliberately separate. Settings export is plain JSON and holds no
+> credentials, so it is safe to keep anywhere. The server export holds live tokens, so it is
+> encrypted with AES-256-GCM under a password only you know — lose the password and the file is
+> not recoverable.
 
 ## Security
 

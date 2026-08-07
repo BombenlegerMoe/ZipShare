@@ -37,7 +37,9 @@ import okhttp3.OkHttpClient
  *
  * Playback survives leaving the app, via picture-in-picture - see [enterPip].
  */
-@OptIn(UnstableApi::class)
+// media3 marks its unstable API with androidx's RequiresOptIn, not Kotlin's, so kotlin.OptIn
+// silences the compiler but leaves lint reporting every call site as an error.
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 fun VideoPlayer(url: String, client: OkHttpClient, modifier: Modifier = Modifier) {
     val context = LocalContext.current
