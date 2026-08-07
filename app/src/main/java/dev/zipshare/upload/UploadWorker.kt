@@ -117,7 +117,9 @@ class UploadWorker @AssistedInject constructor(
             // Reached on cancellation too, where `outcome` is still null - and cancellation is
             // exactly the path that used to leak. Only a retry keeps its staged copy and password;
             // every other ending, including being stopped mid-flight, gives them up.
-            if (outcome !is Result.Retry) {
+            // Compared by value rather than `is Result.Retry`: that type is restricted to
+            // WorkManager's own library group, and Retry has no state, so equality is exact.
+            if (outcome != Result.retry()) {
                 withContext(NonCancellable) {
                     secretId?.let { secure.removeUploadSecret(it) }
                     if (staged && uri.scheme == "file") {

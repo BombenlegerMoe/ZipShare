@@ -11,7 +11,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.Uri
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Build
+import androidx.core.content.ContextCompat
 import android.os.PersistableBundle
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -153,6 +156,15 @@ class UploadNotifications @Inject constructor(@ApplicationContext private val co
     }
 
     private fun notify(id: Int, notification: Notification) {
+        // POST_NOTIFICATIONS became a runtime permission in API 33, and posting without it throws.
+        // runCatching would swallow that, but checking first is what actually says "this is
+        // expected" - a user who declined notifications is not an error path.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
         runCatching { NotificationManagerCompat.from(context).notify(id, notification) }
     }
 

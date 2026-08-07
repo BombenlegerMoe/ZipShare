@@ -21,6 +21,11 @@ jobs:
       - name: Unit tests
         run: ./gradlew testDebugUnitTest
 
+      # Lint is a separate step from assemble: assembleRelease only runs lintVital, which checks
+      # fatal issues, so five real errors sat on main unnoticed until this was added.
+      - name: Lint
+        run: ./gradlew lintRelease
+
       # No signing material in CI, so this intentionally produces an unsigned APK.
       # It still exercises R8 full mode, which is where keep-rule mistakes surface.
       - name: Assemble debug and release
@@ -32,3 +37,10 @@ jobs:
         with:
           name: test-reports
           path: app/build/reports/tests/
+
+      - name: Upload lint report on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-release.html
