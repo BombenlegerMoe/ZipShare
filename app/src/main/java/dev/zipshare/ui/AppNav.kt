@@ -38,6 +38,7 @@ import dev.zipshare.ui.servers.ServersViewModel
 import dev.zipshare.ui.settings.SettingsScreen
 import dev.zipshare.ui.shell.LocalIsAdmin
 import dev.zipshare.ui.shell.LocalLinkFormat
+import dev.zipshare.ui.search.LocalDynamicSearchEntries
 import dev.zipshare.ui.shell.LocalNavigate
 import dev.zipshare.ui.shell.LocalSignedInUser
 import dev.zipshare.ui.shell.NavItem
@@ -127,6 +128,12 @@ fun AppNav(startAction: String? = null) {
 
     LaunchedEffect(shell.active?.id) { if (shell.active != null) shellVm.loadMe() }
 
+    // Pull the live instance-settings keys for admins so search covers whatever this server has,
+    // not only the hand-listed common ones. Keyed on the role too, since it arrives after loadMe.
+    val isAdmin = isAdministrator(shell.me?.role)
+    LaunchedEffect(shell.active?.id, isAdmin) { shellVm.loadSettingSearchIndex(isAdmin) }
+    val dynamicSearch by shellVm.settingSearch.collectAsStateWithLifecycle()
+
     // Nothing configured yet: sign-in is the whole app, not a page inside it. Gated on
     // profilesReady so a cold start does not flash this before profiles load off disk.
     if (shell.profilesReady && shell.profiles.isEmpty()) {
@@ -157,7 +164,8 @@ fun AppNav(startAction: String? = null) {
         LocalSignedInUser provides shell.me?.let { "${it.username} - ${it.role}" },
         LocalLinkFormat provides linkFormat,
         LocalNavigate provides ::go,
-        LocalIsAdmin provides isAdministrator(shell.me?.role),
+        LocalIsAdmin provides isAdmin,
+        LocalDynamicSearchEntries provides dynamicSearch,
     ) {
     ModalNavigationDrawer(
         drawerState = drawerState,

@@ -45,6 +45,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -113,9 +114,16 @@ private val SERVER_SETTING_KEYS = listOf(
     "tasksDeleteInterval", "tasksMetricsInterval",
 )
 
-private val serverSettingEntries: List<SearchEntry> = SERVER_SETTING_KEYS.map { key ->
-    val group = key.takeWhile { it.isLowerCase() }
-    SearchEntry(
+/**
+ * One search row for one instance-settings key, built the same way the screen builds its rows so
+ * the label, group and anchor all line up. The static list above seeds the common keys for a cold
+ * search; the live set an admin's own server returns is layered on top at runtime (see
+ * [LocalDynamicSearchEntries]), which is what makes *every* key their instance exposes findable
+ * rather than only the ones hand-listed here.
+ */
+fun serverSettingSearchEntry(key: String): SearchEntry {
+    val group = key.takeWhile { it.isLowerCase() }.ifEmpty { "other" }
+    return SearchEntry(
         title = settingLabel(key, group),
         where = "Server settings > ${groupTitle(group)}",
         route = Routes.ADMIN_SETTINGS,
@@ -127,6 +135,15 @@ private val serverSettingEntries: List<SearchEntry> = SERVER_SETTING_KEYS.map { 
         anchor = key,
     )
 }
+
+private val serverSettingEntries: List<SearchEntry> = SERVER_SETTING_KEYS.map(::serverSettingSearchEntry)
+
+/**
+ * Instance-settings rows discovered from the active server's own `/api/server/settings` response,
+ * provided by the shell for admins. Empty for everyone else and before the first load; the static
+ * seed still covers the common keys until then.
+ */
+val LocalDynamicSearchEntries = compositionLocalOf<List<SearchEntry>> { emptyList() }
 
 /**
  * Everything reachable in the app, flattened.
@@ -255,7 +272,11 @@ fun searchEntries(
     isAdmin: Boolean,
     entries: List<SearchEntry> = appSearchIndex,
 ): List<SearchEntry> {
-    val visible = entries.filter { !it.adminOnly || isAdmin }
+    // The static seed and the live server-settings list overlap on the common keys, so collapse
+    // them: an entry is the same result if it lands on the same row (route + anchor), or is the
+    // same whole-screen destination (route + title) when there is no anchor.
+    val deduped = entries.distinctBy { it.route + " " + (it.anchor ?: it.title) }
+    val visible = deduped.filter { !it.adminOnly || isAdmin }
     val q = query.trim().lowercase()
     if (q.isEmpty()) return visible
 
@@ -288,11 +309,17 @@ fun searchEntries(
 fun SearchAction() {
     val navigate = LocalNavigate.current
     val isAdmin = LocalIsAdmin.current
+    val dynamic = LocalDynamicSearchEntries.current
     var open by remember { mutableStateOf(false) }
 
     IconButton(onClick = { open = true }) { Icon(Icons.Filled.Search, "Search") }
     if (open) {
-        AppSearchDialog(isAdmin = isAdmin, onDismiss = { open = false }, onNavigate = navigate)
+        AppSearchDialog(
+            isAdmin = isAdmin,
+            extraEntries = dynamic,
+            onDismiss = { open = false },
+            onNavigate = navigate,
+        )
     }
 }
 
@@ -300,6 +327,7 @@ fun SearchAction() {
 @Composable
 fun AppSearchDialog(
     isAdmin: Boolean,
+    extraEntries: List<SearchEntry> = emptyList(),
     onDismiss: () -> Unit,
     onNavigate: (String) -> Unit,
 ) {
@@ -307,7 +335,8 @@ fun AppSearchDialog(
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
 
-    val results = searchEntries(query, isAdmin)
+    val entries = remember(extraEntries) { appSearchIndex + extraEntries }
+    val results = searchEntries(query, isAdmin, entries)
 
     Dialog(
         onDismissRequest = onDismiss,

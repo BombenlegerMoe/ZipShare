@@ -576,6 +576,24 @@ SERVER_SETTINGS = {
     "chunksSize": "25mb",
     "tasksDeleteInterval": "30m",
     "tasksMetricsInterval": "1h",
+    # Real Zipline exposes far more than the app's hand-listed subset - OAuth providers, the
+    # Discord webhook block, PWA, MFA. These are here so the app's dynamic search (which reads the
+    # live keys off this response) can be exercised on keys the static seed never knew about.
+    "oauthBypassers": "",
+    "oauthLoginOnly": False,
+    "oauthDiscordClientId": "",
+    "oauthDiscordClientSecret": "",
+    "oauthGoogleClientId": "",
+    "oauthGithubClientId": "",
+    "mfaTotpEnabled": False,
+    "mfaTotpIssuer": "Zipline",
+    "mfaPasskeys": False,
+    "discordWebhookUrl": "",
+    "discordUsername": "Zipline",
+    "discordOnUploadEnabled": False,
+    "pwaEnabled": True,
+    "pwaTitle": "Zipline",
+    "pwaThemeColor": "#000000",
 }
 
 # Keys pinned by env/config file on the server; Zipline reports these as "tampered".
