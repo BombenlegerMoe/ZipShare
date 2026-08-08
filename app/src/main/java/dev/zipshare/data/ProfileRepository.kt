@@ -17,6 +17,7 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.core.content.edit
 
 /**
  * Profiles (including tokens) live only in EncryptedSharedPreferences. Nothing here is logged.
@@ -100,9 +101,7 @@ class ProfileRepository @Inject constructor(
         _activeId.value = id
         // Encrypting the write is cheap once warm, but keep it off the caller's thread regardless.
         scope.launch {
-            secure.prefs.edit()
-                .apply { if (id == null) remove(KEY_ACTIVE) else putString(KEY_ACTIVE, id) }
-                .apply()
+            secure.prefs.edit { if (id == null) remove(KEY_ACTIVE) else putString(KEY_ACTIVE, id) }
         }
     }
 
@@ -118,9 +117,9 @@ class ProfileRepository @Inject constructor(
 
     private fun persist(list: List<Profile>) {
         scope.launch {
-            secure.prefs.edit()
-                .putString(KEY_PROFILES, json.encodeToString(ListSerializer(Profile.serializer()), list))
-                .apply()
+            secure.prefs.edit {
+                putString(KEY_PROFILES, json.encodeToString(ListSerializer(Profile.serializer()), list))
+            }
         }
     }
 

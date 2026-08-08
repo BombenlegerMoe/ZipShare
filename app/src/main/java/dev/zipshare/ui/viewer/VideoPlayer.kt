@@ -2,6 +2,7 @@ package dev.zipshare.ui.viewer
 
 import android.app.Activity
 import android.app.PictureInPictureParams
+import android.os.Build
 import android.util.Rational
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
@@ -11,10 +12,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -27,6 +35,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import dev.zipshare.ui.findActivity
 import okhttp3.OkHttpClient
+
 
 /**
  * Plays a file straight off the server.
@@ -61,9 +70,21 @@ fun VideoPlayer(url: String, client: OkHttpClient, modifier: Modifier = Modifier
 
     DisposableEffect(player) { onDispose { player.release() } }
 
+    // Where the video sits on screen, so the system can animate the shrink from the real frame
+    // instead of the whole window. Kept as state because it is only known after layout.
+    var videoBounds by remember { mutableStateOf<Rect?>(null) }
+
+    // Registering the params up front is what lets Android dock automatically when the user leaves
+    // during playback (API 31+); without it PiP only ever happens on the explicit button.
+    LaunchedEffect(activity, videoBounds, player.videoSize) {
+        activity?.updatePipParams(player.videoSize.width, player.videoSize.height, videoBounds)
+    }
+
     Box(modifier) {
         AndroidView(
-            modifier = Modifier.matchParentSize(),
+            modifier = Modifier
+                .matchParentSize()
+                .onGloballyPositioned { videoBounds = it.boundsInWindow() },
             factory = { ctx -> PlayerView(ctx).apply { this.player = player } },
             update = { view ->
                 view.player = player
@@ -76,7 +97,7 @@ fun VideoPlayer(url: String, client: OkHttpClient, modifier: Modifier = Modifier
 
         if (activity != null && !inPip) {
             IconButton(
-                onClick = { activity.enterPip(player.videoSize.width, player.videoSize.height) },
+                onClick = { activity.enterPip(player.videoSize.width, player.videoSize.height, videoBounds) },
                 modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
             ) {
                 Icon(
@@ -111,17 +132,34 @@ private fun rememberIsInPip(): Boolean {
  * [IllegalArgumentException], so an unusually wide or tall video is clamped rather than left to
  * crash the viewer. A video whose size is not known yet falls back to 16:9.
  */
-private fun Activity.enterPip(width: Int, height: Int) {
-    val (numerator, denominator) = pipAspect(width, height)
+private fun Activity.enterPip(width: Int, height: Int, source: Rect?) {
     // Docking can still be refused - the device may have PiP disabled in settings, or the activity
     // may not be in the foreground by the time this lands.
-    runCatching {
-        enterPictureInPictureMode(
-            PictureInPictureParams.Builder()
-                .setAspectRatio(Rational(numerator, denominator))
-                .build(),
-        )
-    }
+    runCatching { enterPictureInPictureMode(pipParams(width, height, source)) }
+}
+
+/**
+ * Publishes the params without docking, which is what auto-enter needs.
+ *
+ * From Android 12 the system docks on its own when the user leaves during playback, but only if
+ * the activity has already declared its params - so this runs as soon as the video's size and
+ * on-screen position are known, not at the moment the button is pressed.
+ */
+private fun Activity.updatePipParams(width: Int, height: Int, source: Rect?) {
+    runCatching { setPictureInPictureParams(pipParams(width, height, source)) }
+}
+
+private fun Activity.pipParams(width: Int, height: Int, source: Rect?): PictureInPictureParams {
+    val (numerator, denominator) = pipAspect(width, height)
+    return PictureInPictureParams.Builder()
+        .setAspectRatio(Rational(numerator, denominator))
+        .apply {
+            // The rect the window shrinks *from*. Without it the animation flies out of the whole
+            // screen rather than the video frame, which is the poor transition lint warns about.
+            source?.let { setSourceRectHint(android.graphics.Rect(it.left.toInt(), it.top.toInt(), it.right.toInt(), it.bottom.toInt())) }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) setAutoEnterEnabled(true)
+        }
+        .build()
 }
 
 /**

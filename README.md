@@ -26,7 +26,7 @@ encrypted storage and no telemetry of any kind.
 |:---:|:---:|:---:|
 | <img src="docs/screenshots/03-dashboard.png" width="230" alt="Dashboard"> | <img src="docs/screenshots/09-files-grid.png" width="230" alt="File grid"> | <img src="docs/screenshots/06-totp-setup.png" width="230" alt="TOTP enrollment with QR and authenticator hand-off"> |
 
-<sub><b>38 more screenshots</b> — open a section below.</sub>
+<sub><b>36 more screenshots</b> — open a section below.</sub>
 
 <details>
 <summary><b>Signing in &amp; your account</b> — sign-in, invite signup, servers, account menu, avatar, sessions, two-factor</summary>
@@ -47,9 +47,9 @@ encrypted storage and no telemetry of any kind.
 |:---:|:---:|:---:|
 | <img src="docs/screenshots/32-diagnostic.png" width="230" alt="Diagnostic page: history, logs, settings backup and import"> | <img src="docs/screenshots/33-server-version.png" width="230" alt="Zipline server version panel"> | <img src="docs/screenshots/34-sharing.png" width="230" alt="Link format: plain, markdown or view page"> |
 
-| Servers | Search | Server backup |
+| Servers | | |
 |:---:|:---:|:---:|
-| <img src="docs/screenshots/36-servers.png" width="230" alt="Server list with three profiles, each with its own URL and settings"> | <img src="docs/screenshots/37-app-search.png" width="230" alt="Searching every screen and setting from the dashboard"> | <img src="docs/screenshots/40-server-backup.png" width="230" alt="Password-encrypted export of every server and its token"> |
+| <img src="docs/screenshots/36-servers.png" width="230" alt="Server list with three profiles, each with its own URL and settings"> | | |
 
 </details>
 
@@ -70,7 +70,7 @@ encrypted storage and no telemetry of any kind.
 
 | Per-format compression | On-device compression | |
 |:---:|:---:|:---:|
-| <img src="docs/screenshots/35-auto-compression.png" width="230" alt="Auto compression with separate JPEG and PNG quality"> | <img src="docs/screenshots/38-device-compression.png" width="230" alt="Re-encoding to WebP or JPEG on the phone before uploading"> | |
+| <img src="docs/screenshots/35-auto-compression.png" width="230" alt="Auto compression with separate JPEG and PNG quality"> | <img src="docs/screenshots/37-device-compression.png" width="230" alt="Re-encoding to WebP or JPEG on the phone before uploading"> | |
 
 </details>
 
@@ -87,7 +87,7 @@ encrypted storage and no telemetry of any kind.
 
 | Upload queue | Picture-in-picture | |
 |:---:|:---:|:---:|
-| <img src="docs/screenshots/39-upload-queue.png" width="230" alt="Upload queue for the active server, with progress and cancel"> | <img src="docs/screenshots/41-picture-in-picture.png" width="230" alt="Video docked in a floating window over another app"> | |
+| <img src="docs/screenshots/38-upload-queue.png" width="230" alt="Upload queue for the active server, with progress and cancel"> | <img src="docs/screenshots/39-picture-in-picture.png" width="230" alt="Video docked in a floating window over another app"> | |
 
 </details>
 

@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.zipshare.data.model.otpauthUri
 import dev.zipshare.ui.SecureScreen
 import dev.zipshare.ui.rememberDataUrlBitmap
+import androidx.core.net.toUri
 
 /**
  * Two-factor enrollment, mirroring the web dashboard's MFA panel.
@@ -159,7 +160,7 @@ private fun QrImage(dataUrl: String?) {
  */
 private fun openInAuthenticator(context: Context, uri: String) {
     try {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri)))
+        context.startActivity(Intent(Intent.ACTION_VIEW, uri.toUri()))
     } catch (e: ActivityNotFoundException) {
         Toast.makeText(
             context,

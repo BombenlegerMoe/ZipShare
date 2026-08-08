@@ -1,5 +1,7 @@
 package dev.zipshare.upload
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -9,21 +11,20 @@ import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.net.Uri
-import android.Manifest
-import android.content.pm.PackageManager
 import android.os.Build
-import androidx.core.content.ContextCompat
 import android.os.PersistableBundle
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.work.ForegroundInfo
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.zipshare.R
 import javax.inject.Inject
 import javax.inject.Singleton
-
 @Singleton
 class UploadNotifications @Inject constructor(@ApplicationContext private val context: Context) {
 
@@ -90,7 +91,7 @@ class UploadNotifications @Inject constructor(@ApplicationContext private val co
         val open = PendingIntent.getActivity(
             context,
             id,
-            Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val share = PendingIntent.getActivity(
@@ -146,6 +147,9 @@ class UploadNotifications @Inject constructor(@ApplicationContext private val co
      * instance the URL *is* the secret, and this keeps it out of clipboard previews and
      * clipboard-history surfaces.
      */
+    // EXTRA_IS_SENSITIVE is API 33, but it is only a bundle key: an older platform stores the
+    // extra and ignores it rather than failing, so there is nothing to guard with a version check.
+    @SuppressLint("InlinedApi")
     fun copyToClipboard(url: String) {
         val cm = context.getSystemService(ClipboardManager::class.java) ?: return
         val clip = ClipData.newPlainText("ZipShare", url)

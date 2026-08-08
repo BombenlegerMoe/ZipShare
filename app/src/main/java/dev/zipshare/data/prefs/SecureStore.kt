@@ -9,6 +9,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.zipshare.log.AppLog
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.core.content.edit
 
 /**
  * Whether an upload secret started at [startedAt] can no longer belong to a live upload.
@@ -51,7 +52,7 @@ class SecureStore @Inject constructor(@ApplicationContext private val context: C
             // so leave a marker: silently returning the user to an empty sign-in screen is
             // indistinguishable from a bug or an unexplained logout.
             context.deleteSharedPreferences(FILE)
-            recovery.edit().putBoolean(KEY_WAS_RESET, true).apply()
+            recovery.edit { putBoolean(KEY_WAS_RESET, true) }
             open(strongBox = false)
         }
         .getOrThrow()
@@ -62,7 +63,7 @@ class SecureStore @Inject constructor(@ApplicationContext private val context: C
      */
     fun consumeKeysetReset(): Boolean {
         if (!recovery.getBoolean(KEY_WAS_RESET, false)) return false
-        recovery.edit().remove(KEY_WAS_RESET).apply()
+        recovery.edit { remove(KEY_WAS_RESET) }
         return true
     }
 
@@ -94,17 +95,17 @@ class SecureStore @Inject constructor(@ApplicationContext private val context: C
     fun putUploadSecret(value: String): String {
         val id = java.util.UUID.randomUUID().toString()
         // Written together so a secret can never exist without the timestamp the sweep judges it by.
-        prefs.edit()
-            .putString(SECRET_PREFIX + id, value)
-            .putLong(STARTED_PREFIX + id, System.currentTimeMillis())
-            .apply()
+        prefs.edit {
+            putString(SECRET_PREFIX + id, value)
+            putLong(STARTED_PREFIX + id, System.currentTimeMillis())
+        }
         return id
     }
 
     fun uploadSecret(id: String): String? = prefs.getString(SECRET_PREFIX + id, null)
 
     fun removeUploadSecret(id: String) {
-        prefs.edit().remove(SECRET_PREFIX + id).remove(STARTED_PREFIX + id).apply()
+        prefs.edit { remove(SECRET_PREFIX + id); remove(STARTED_PREFIX + id) }
     }
 
     /**
