@@ -50,6 +50,7 @@ import coil.compose.SubcomposeAsyncImageContent
 import kotlinx.coroutines.launch
 import dev.zipshare.data.model.formatLink
 import dev.zipshare.ui.shell.LocalLinkFormat
+import androidx.core.net.toUri
 
 /**
  * Full-screen viewer. Pinch to zoom, drag to pan once zoomed, double-tap to toggle 1x/2.5x,
@@ -144,7 +145,7 @@ fun ImageViewerScreen(
                             onClick = {
                                 runCatching {
                                     context.startActivity(
-                                        Intent(Intent.ACTION_VIEW, android.net.Uri.parse(shareUrl)),
+                                        Intent(Intent.ACTION_VIEW, shareUrl.toUri()),
                                     )
                                 }
                             },
