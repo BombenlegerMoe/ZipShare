@@ -262,6 +262,18 @@ val appSearchIndex: List<SearchEntry> = listOf(
 ) + serverSettingEntries
 
 /**
+ * The full search index for this session: the static seed plus the live server-settings rows an
+ * admin's own instance returns. The two overlap on the common keys, so collapse them - an entry is
+ * the same result when it lands on the same row (route + anchor), or the same whole-screen
+ * destination (route + title) when it has no anchor. Deduped here once, not on every keystroke.
+ */
+fun mergedSearchEntries(extra: List<SearchEntry> = emptyList()): List<SearchEntry> =
+    (appSearchIndex + extra).distinctBy { it.route to (it.anchor ?: it.title) }
+
+/** Ask the shell to (re)load the live settings index; a no-op once loaded for the active server. */
+val LocalRefreshDynamicSearch = compositionLocalOf<() -> Unit> { {} }
+
+/**
  * Ranked match over [entries]. Kept pure - no Compose, no Android - so the ranking can be tested.
  *
  * A title that starts with the query beats one that merely contains it, which beats a keyword-only
@@ -272,11 +284,7 @@ fun searchEntries(
     isAdmin: Boolean,
     entries: List<SearchEntry> = appSearchIndex,
 ): List<SearchEntry> {
-    // The static seed and the live server-settings list overlap on the common keys, so collapse
-    // them: an entry is the same result if it lands on the same row (route + anchor), or is the
-    // same whole-screen destination (route + title) when there is no anchor.
-    val deduped = entries.distinctBy { it.route + " " + (it.anchor ?: it.title) }
-    val visible = deduped.filter { !it.adminOnly || isAdmin }
+    val visible = entries.filter { !it.adminOnly || isAdmin }
     val q = query.trim().lowercase()
     if (q.isEmpty()) return visible
 
@@ -310,10 +318,13 @@ fun SearchAction() {
     val navigate = LocalNavigate.current
     val isAdmin = LocalIsAdmin.current
     val dynamic = LocalDynamicSearchEntries.current
+    val refresh = LocalRefreshDynamicSearch.current
     var open by remember { mutableStateOf(false) }
 
     IconButton(onClick = { open = true }) { Icon(Icons.Filled.Search, "Search") }
     if (open) {
+        // A failed prefetch left the live rows empty; opening search is the moment to retry.
+        LaunchedEffect(Unit) { refresh() }
         AppSearchDialog(
             isAdmin = isAdmin,
             extraEntries = dynamic,
@@ -335,7 +346,7 @@ fun AppSearchDialog(
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
 
-    val entries = remember(extraEntries) { appSearchIndex + extraEntries }
+    val entries = remember(extraEntries) { mergedSearchEntries(extraEntries) }
     val results = searchEntries(query, isAdmin, entries)
 
     Dialog(

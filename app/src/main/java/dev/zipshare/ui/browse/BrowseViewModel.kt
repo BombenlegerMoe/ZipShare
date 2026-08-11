@@ -33,7 +33,6 @@ import dev.zipshare.data.net.ZUser
 import dev.zipshare.data.net.ZiplineApi
 import dev.zipshare.data.net.ZiplineClients
 import dev.zipshare.ui.search.SearchEntry
-import dev.zipshare.ui.search.serverSettingSearchEntry
 import dev.zipshare.data.net.unwrap
 import dev.zipshare.ui.callActive
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -132,31 +131,25 @@ class BrowseViewModel @Inject constructor(
     /**
      * Every instance-settings key the active server actually exposes, as search rows, so search
      * covers whatever this Zipline version happens to have rather than only a hand-kept subset.
-     *
-     * Deliberately not [launchWithProfile]: `/api/server/settings` is admin-only and 403s for
-     * everyone else, and a failed background prefetch must not raise the shared error banner. It
-     * is gated on [isAdmin] and swallows failure - the static seed still covers the common keys.
-     * Fetched once per profile; re-run when the active server changes.
+     * The per-profile fetch, clear-on-switch and stale-response rules live in [SettingSearchIndex];
+     * `/api/server/settings` is admin-only, so failures just fall back to the static seed.
      */
-    fun loadSettingSearchIndex(isAdmin: Boolean) {
-        val profile = profiles.activeNow() ?: return
-        if (!isAdmin || profile.id == settingSearchProfileId) return
-        settingSearchProfileId = profile.id
-        viewModelScope.launch {
-            val keys = runCatching {
-                clients.api(profile).serverSettings().unwrap().settings.keys
-            }.getOrNull() ?: run {
-                // Let a later attempt retry rather than caching an empty result for this profile.
-                settingSearchProfileId = null
-                return@launch
+    private val settingSearchIndex = SettingSearchIndex(
+        scope = viewModelScope,
+        activeProfileId = { profiles.activeNow()?.id },
+        fetchKeys = { id ->
+            profiles.byId(id)?.let { profile ->
+                runCatching {
+                    clients.api(profile).serverSettings().unwrap().settings.keys.toList()
+                }.getOrNull()
             }
-            _settingSearch.value = keys.map(::serverSettingSearchEntry)
-        }
-    }
+        },
+    )
+    val settingSearch: StateFlow<List<SearchEntry>> = settingSearchIndex.entries
 
-    private var settingSearchProfileId: String? = null
-    private val _settingSearch = MutableStateFlow<List<SearchEntry>>(emptyList())
-    val settingSearch: StateFlow<List<SearchEntry>> = _settingSearch
+    /** Prefetch for admins; safe to call repeatedly - it fetches at most once per server. */
+    fun loadSettingSearchIndex(isAdmin: Boolean) =
+        settingSearchIndex.sync(profiles.activeNow()?.id, isAdmin)
 
     fun loadFiles(page: Int = _state.value.page, folder: String? = _state.value.folderFilter) =
         launchWithProfile { api, _ ->

@@ -2,6 +2,7 @@ package dev.zipshare
 
 import dev.zipshare.ui.Routes
 import dev.zipshare.ui.search.appSearchIndex
+import dev.zipshare.ui.search.mergedSearchEntries
 import dev.zipshare.ui.search.searchEntries
 import dev.zipshare.ui.search.serverSettingSearchEntry
 import org.junit.Assert.assertEquals
@@ -24,7 +25,7 @@ class DynamicSettingSearchTest {
         "mfaTotpEnabled", "mfaTotpIssuer", "mfaPasskeys",
         "httpWebhookOnUpload",
     )
-    private val merged = appSearchIndex + liveKeys.map(::serverSettingSearchEntry)
+    private val merged = mergedSearchEntries(liveKeys.map(::serverSettingSearchEntry))
 
     private fun titles(query: String, admin: Boolean = true) =
         searchEntries(query, admin, merged).map { it.title }
@@ -64,7 +65,7 @@ class DynamicSettingSearchTest {
     @Test
     fun `a live key overlapping the static seed is not listed twice`() {
         // featuresOauthRegistration is already in the static seed; feed it as a live key too.
-        val withOverlap = appSearchIndex + serverSettingSearchEntry("featuresOauthRegistration")
+        val withOverlap = mergedSearchEntries(listOf(serverSettingSearchEntry("featuresOauthRegistration")))
         val hits = searchEntries("oauth registration", isAdmin = true, withOverlap)
             .filter { it.anchor == "featuresOauthRegistration" }
         assertEquals(1, hits.size)
