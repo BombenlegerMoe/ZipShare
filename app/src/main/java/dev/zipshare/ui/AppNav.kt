@@ -9,6 +9,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -39,6 +40,7 @@ import dev.zipshare.ui.settings.SettingsScreen
 import dev.zipshare.ui.shell.LocalIsAdmin
 import dev.zipshare.ui.shell.LocalLinkFormat
 import dev.zipshare.ui.search.LocalDynamicSearchEntries
+import dev.zipshare.ui.search.LocalRefreshDynamicSearch
 import dev.zipshare.ui.shell.LocalNavigate
 import dev.zipshare.ui.shell.LocalSignedInUser
 import dev.zipshare.ui.shell.NavItem
@@ -133,6 +135,7 @@ fun AppNav(startAction: String? = null) {
     val isAdmin = isAdministrator(shell.me?.role)
     LaunchedEffect(shell.active?.id, isAdmin) { shellVm.loadSettingSearchIndex(isAdmin) }
     val dynamicSearch by shellVm.settingSearch.collectAsStateWithLifecycle()
+    val refreshDynamicSearch: () -> Unit = remember(isAdmin) { { shellVm.loadSettingSearchIndex(isAdmin) } }
 
     // Nothing configured yet: sign-in is the whole app, not a page inside it. Gated on
     // profilesReady so a cold start does not flash this before profiles load off disk.
@@ -166,6 +169,7 @@ fun AppNav(startAction: String? = null) {
         LocalNavigate provides ::go,
         LocalIsAdmin provides isAdmin,
         LocalDynamicSearchEntries provides dynamicSearch,
+        LocalRefreshDynamicSearch provides refreshDynamicSearch,
     ) {
     ModalNavigationDrawer(
         drawerState = drawerState,
