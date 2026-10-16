@@ -3,6 +3,7 @@ package dev.zipshare
 import dev.zipshare.data.model.CompressionType
 import dev.zipshare.data.model.NameFormat
 import dev.zipshare.data.model.UploadOptions
+import dev.zipshare.data.net.PartialProtocol
 import dev.zipshare.data.net.UploadHeaderBuilder
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -115,8 +116,9 @@ class UploadHeaderBuilderTest {
         UploadHeaderBuilder.build(UploadOptions(filename = "Bericht-Größe"))
     }
 
+    /** Zipline 4.8+: inclusive end, so bytes 100..199 travel as `100-199`, plus the single-use token. */
     @Test
-    fun `partial headers match the pinned wire format`() {
+    fun `partial headers match the pinned 4_8 wire format`() {
         val headers = UploadHeaderBuilder.partial(
             filename = "my holiday.mp4",
             contentType = "video/mp4",
@@ -124,29 +126,48 @@ class UploadHeaderBuilderTest {
             start = 100,
             end = 200,
             lastChunk = false,
-            identifier = "abc12345",
+            protocol = PartialProtocol.TOKEN,
+            continuation = "tok",
         )
-        assertEquals("bytes 100-200/300", headers["content-range"])
+        assertEquals("bytes 100-199/300", headers["content-range"])
         assertEquals("my%20holiday.mp4", headers["x-zipline-p-filename"])
         assertEquals("video/mp4", headers["x-zipline-p-content-type"])
         assertEquals("300", headers["x-zipline-p-content-length"])
         assertEquals("false", headers["x-zipline-p-lastchunk"])
+        assertEquals("tok", headers["x-zipline-p-token"])
+        assertNull(headers["x-zipline-p-identifier"])
+    }
+
+    /** Before 4.8: exclusive end and the long-lived identifier. Still spoken by older instances. */
+    @Test
+    fun `legacy partial headers keep the pre-4_8 wire format`() {
+        val headers = UploadHeaderBuilder.partial(
+            "a.bin", "application/octet-stream", 300, 100, 200, false, PartialProtocol.LEGACY, "abc12345",
+        )
+        assertEquals("bytes 100-200/300", headers["content-range"])
         assertEquals("abc12345", headers["x-zipline-p-identifier"])
+        assertNull(headers["x-zipline-p-token"])
     }
 
     @Test
-    fun `first chunk omits the identifier the server has not issued yet`() {
-        val headers = UploadHeaderBuilder.partial(
-            "a.bin", "application/octet-stream", 10, 0, 10, true, null,
+    fun `first chunk sends no continuation in either protocol`() {
+        for (protocol in PartialProtocol.entries) {
+            val headers = UploadHeaderBuilder.partial(
+                "a.bin", "application/octet-stream", 10, 0, 10, true, protocol, null,
+            )
+            assertNull(headers["x-zipline-p-identifier"])
+            assertNull(headers["x-zipline-p-token"])
+            assertEquals("true", headers["x-zipline-p-lastchunk"])
+        }
+        assertEquals(
+            "bytes 0-9/10",
+            UploadHeaderBuilder.partial("a.bin", "x/y", 10, 0, 10, true, PartialProtocol.TOKEN, null)["content-range"],
         )
-        assertNull(headers["x-zipline-p-identifier"])
-        assertEquals("true", headers["x-zipline-p-lastchunk"])
-        assertEquals("bytes 0-10/10", headers["content-range"])
     }
 
     @Test(expected = IllegalArgumentException::class)
     fun `chunk end beyond total is rejected before it reaches the server`() {
-        UploadHeaderBuilder.partial("a.bin", "application/octet-stream", 10, 5, 11, true, "id")
+        UploadHeaderBuilder.partial("a.bin", "application/octet-stream", 10, 5, 11, true, PartialProtocol.TOKEN, "id")
     }
 
     // --- auto compression ---

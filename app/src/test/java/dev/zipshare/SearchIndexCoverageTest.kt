@@ -67,7 +67,7 @@ class SearchIndexCoverageTest {
      */
     @Test
     fun `instance settings are findable by the words on the row`() {
-        fun titles(q: String) = searchEntries(q, isAdmin = true).map { it.title }
+        fun titles(q: String) = searchEntries(q, isAdmin = true, isSuperAdmin = true).map { it.title }
         assertTrue("mimetypes", titles("mimetypes").contains("Assume mimetypes"))
         assertTrue("raw key", titles("filesassumemimetypes").contains("Assume mimetypes"))
         assertTrue("extensions", titles("disabled extensions").contains("Disabled extensions"))

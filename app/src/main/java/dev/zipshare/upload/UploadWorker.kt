@@ -38,7 +38,6 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import java.io.File
 import java.io.IOException
-import kotlin.math.min
 
 @HiltWorker
 class UploadWorker @AssistedInject constructor(
@@ -239,10 +238,7 @@ class UploadWorker @AssistedInject constructor(
         return Uploaded(response, file)
     }
 
-    /**
-     * Chunked upload. Chunks must go sequentially: the server issues `partialIdentifier` on the
-     * first chunk (start == 0) and requires it on every following one.
-     */
+    /** Chunked upload; the protocol and ordering rules live in [PartialUpload]. */
     private suspend fun uploadPartial(
         profileId: String,
         uri: Uri,
@@ -260,22 +256,18 @@ class UploadWorker @AssistedInject constructor(
         val base = UploadHeaderBuilder.build(options, meta.mime)
         val mediaType = meta.mime.toMediaTypeOrNull()
 
-        var identifier: String? = null
-        var start = 0L
-        var lastResponse: UploadResponse? = null
+        if (meta.size <= 0L) throw ZiplineException(
+            0, 0, "empty file", "Nothing to upload - the file is empty.", ErrorAction.NONE,
+        )
 
-        while (start < meta.size) {
-            val end = min(start + chunkSize, meta.size)
-            val lastChunk = end >= meta.size
-            val chunkStart = start
-
+        val response = PartialUpload.run(profileId, meta.size, chunkSize) { chunk ->
             val body = ProgressRequestBody(
                 mediaType = mediaType,
-                length = end - chunkStart,
-                offset = chunkStart,
+                length = chunk.end - chunk.start,
+                offset = chunk.start,
                 openStream = { openStream(uri) },
                 onProgress = { written, _ ->
-                    report(notificationId, meta.name, chunkStart + written, meta.size)
+                    report(notificationId, meta.name, chunk.start + written, meta.size)
                 },
             )
             val part = MultipartBody.Part.createFormData("file", meta.name, body)
@@ -283,26 +275,14 @@ class UploadWorker @AssistedInject constructor(
                 filename = meta.name,
                 contentType = meta.mime,
                 totalLength = meta.size,
-                start = chunkStart,
-                end = end,
-                lastChunk = lastChunk,
-                identifier = identifier,
+                start = chunk.start,
+                end = chunk.end,
+                lastChunk = chunk.last,
+                protocol = chunk.protocol,
+                continuation = chunk.continuation,
             )
-
-            val response = api.uploadPartial(headers, part).unwrap()
-            lastResponse = response
-            if (chunkStart == 0L) {
-                identifier = response.partialIdentifier ?: throw ZiplineException(
-                    1003, 400, "no partialIdentifier",
-                    "Server did not return a partial upload identifier.", ErrorAction.NONE,
-                )
-            }
-            start = end
+            api.uploadPartial(headers, part).unwrap()
         }
-
-        val response = lastResponse ?: throw ZiplineException(
-            0, 0, "empty file", "Nothing to upload - the file is empty.", ErrorAction.NONE,
-        )
         val file = response.files.firstOrNull() ?: throw ZiplineException(
             0, 200, "empty files[]",
             "Chunks uploaded but the server returned no file.", ErrorAction.NONE,

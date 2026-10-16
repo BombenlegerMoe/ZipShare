@@ -80,9 +80,12 @@ object UploadHeaderBuilder {
     }
 
     /**
-     * Partial-upload headers, matching Zipline's own client.
-     * [end] is exclusive; the server asserts `end - start == bytes received` and, on the last
-     * chunk, that the accumulated length equals [totalLength].
+     * Partial-upload headers, matching Zipline's own client for the given [protocol].
+     *
+     * [end] is exclusive here in both cases; only the wire form differs. 4.8+ asserts
+     * `end - start + 1 == bytes received` against an inclusive end, older servers asserted
+     * `end - start` against an exclusive one. [continuation] is the token or identifier the server
+     * issued for this upload, null on the first chunk.
      */
     fun partial(
         filename: String,
@@ -91,20 +94,32 @@ object UploadHeaderBuilder {
         start: Long,
         end: Long,
         lastChunk: Boolean,
-        identifier: String?,
+        protocol: PartialProtocol,
+        continuation: String?,
     ): Map<String, String> {
         require(start >= 0 && end > start && end <= totalLength) {
             "bad chunk range $start-$end/$totalLength"
         }
         val h = LinkedHashMap<String, String>()
-        h["content-range"] = "bytes $start-$end/$totalLength"
+        val wireEnd = if (protocol == PartialProtocol.TOKEN) end - 1 else end
+        h["content-range"] = "bytes $start-$wireEnd/$totalLength"
         h["x-zipline-p-filename"] = URLEncoder.encode(filename, "UTF-8").replace("+", "%20")
         h["x-zipline-p-content-type"] = headerSafe("x-zipline-p-content-type", contentType)
         h["x-zipline-p-content-length"] = totalLength.toString()
         h["x-zipline-p-lastchunk"] = if (lastChunk) "true" else "false"
-        if (!identifier.isNullOrBlank()) {
-            h["x-zipline-p-identifier"] = headerSafe("x-zipline-p-identifier", identifier)
+        if (!continuation.isNullOrBlank()) {
+            val name = if (protocol == PartialProtocol.TOKEN) "x-zipline-p-token" else "x-zipline-p-identifier"
+            h[name] = headerSafe(name, continuation)
         }
         return h
     }
+}
+
+/** The two chunked-upload contracts Zipline has shipped. */
+enum class PartialProtocol {
+    /** 4.8+: inclusive range end, a fresh single-use `x-zipline-p-token` on every chunk after the first. */
+    TOKEN,
+
+    /** Before 4.8: exclusive range end, one `x-zipline-p-identifier` for the whole upload. */
+    LEGACY,
 }

@@ -37,8 +37,8 @@ class SettingSearchIndexTest {
     @Test
     fun `a non-admin never hits the endpoint`() {
         val f = Fetches()
-        val index = SettingSearchIndex(scope, activeProfileId = { "a" }, fetchKeys = f.fetch)
-        index.sync("a", isAdmin = false)
+        val index = SettingSearchIndex(scope, f.fetch)
+        index.sync("a", canRead = false)
         assertTrue("non-admins must not call the admin-only endpoint", f.calls.isEmpty())
         assertTrue(index.entries.value.isEmpty())
     }
@@ -46,25 +46,23 @@ class SettingSearchIndexTest {
     @Test
     fun `an admin loads a server's keys once`() {
         val f = Fetches()
-        val index = SettingSearchIndex(scope, { "a" }, f.fetch)
-        index.sync("a", isAdmin = true)
+        val index = SettingSearchIndex(scope, f.fetch)
+        index.sync("a", canRead = true)
         f.complete("a", listOf("pwaEnabled")) // group "pwa" -> title "Enabled"
         assertEquals(listOf("Enabled"), index.entries.value.map { it.title })
         // A second sync for the same server does not fetch again.
-        index.sync("a", isAdmin = true)
+        index.sync("a", canRead = true)
         assertEquals(listOf("a"), f.calls)
     }
 
     @Test
     fun `switching servers drops the old rows immediately, then loads the new`() {
         val f = Fetches()
-        var active = "a"
-        val index = SettingSearchIndex(scope, { active }, f.fetch)
-        index.sync("a", isAdmin = true); f.complete("a", listOf("pwaEnabled"))
+        val index = SettingSearchIndex(scope, f.fetch)
+        index.sync("a", canRead = true); f.complete("a", listOf("pwaEnabled"))
         assertTrue(index.entries.value.isNotEmpty())
 
-        active = "b"
-        index.sync("b", isAdmin = true)
+        index.sync("b", canRead = true)
         assertTrue("the old server's rows must be gone before the new load arrives", index.entries.value.isEmpty())
         f.complete("b", listOf("oauthDiscordClientId"))
         assertEquals(listOf("Discord client id"), index.entries.value.map { it.title })
@@ -73,11 +71,9 @@ class SettingSearchIndexTest {
     @Test
     fun `a slower earlier response cannot overwrite the server now active`() {
         val f = Fetches()
-        var active = "a"
-        val index = SettingSearchIndex(scope, { active }, f.fetch)
-        index.sync("a", isAdmin = true) // fetch A in flight
-        active = "b"
-        index.sync("b", isAdmin = true) // fetch B in flight
+        val index = SettingSearchIndex(scope, f.fetch)
+        index.sync("a", canRead = true) // fetch A in flight
+        index.sync("b", canRead = true) // fetch B in flight
         f.complete("b", listOf("oauthDiscordClientId")) // B answers first
         f.complete("a", listOf("pwaEnabled"))           // A answers late - must be ignored
         assertEquals("the active server B must win", listOf("Discord client id"), index.entries.value.map { it.title })
@@ -86,14 +82,43 @@ class SettingSearchIndexTest {
     @Test
     fun `a failed load is forgotten so the next sync retries and can then succeed`() {
         val f = Fetches()
-        val index = SettingSearchIndex(scope, { "a" }, f.fetch)
-        index.sync("a", isAdmin = true)
+        val index = SettingSearchIndex(scope, f.fetch)
+        index.sync("a", canRead = true)
         f.complete("a", null) // first attempt fails
         assertTrue(index.entries.value.isEmpty())
 
-        index.sync("a", isAdmin = true) // e.g. user opens search: it must try once more
+        index.sync("a", canRead = true) // e.g. user opens search: it must try once more
         f.complete("a", listOf("pwaEnabled"))
         assertEquals(listOf("a", "a"), f.calls)
         assertTrue(index.entries.value.isNotEmpty())
+    }
+
+    /**
+     * The shell syncs as soon as the profile is known and again once /api/user returns the role.
+     * 1.4.7 counted the first, role-less call as "loaded" and so never fetched for anyone.
+     */
+    @Test
+    fun `the role arriving after the profile still triggers the load`() {
+        val f = Fetches()
+        val index = SettingSearchIndex(scope, f.fetch)
+        index.sync("a", canRead = false) // role not known yet
+        index.sync("a", canRead = true)  // super admin confirmed
+        assertEquals(listOf("a"), f.calls)
+        f.complete("a", listOf("pwaEnabled"))
+        assertTrue(index.entries.value.isNotEmpty())
+    }
+
+    @Test
+    fun `losing the role clears the rows and drops a response still in flight`() {
+        val f = Fetches()
+        val index = SettingSearchIndex(scope, f.fetch)
+        index.sync("a", canRead = true); f.complete("a", listOf("pwaEnabled"))
+        index.sync("a", canRead = false)
+        assertTrue(index.entries.value.isEmpty())
+
+        index.sync("a", canRead = true)  // fetch in flight...
+        index.sync("a", canRead = false) // ...when the role goes away
+        f.complete("a", listOf("pwaEnabled"))
+        assertTrue("a late answer must not bring the rows back", index.entries.value.isEmpty())
     }
 }

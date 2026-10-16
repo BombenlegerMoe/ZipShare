@@ -38,6 +38,7 @@ import dev.zipshare.ui.servers.ServersScreen
 import dev.zipshare.ui.servers.ServersViewModel
 import dev.zipshare.ui.settings.SettingsScreen
 import dev.zipshare.ui.shell.LocalIsAdmin
+import dev.zipshare.ui.shell.LocalIsSuperAdmin
 import dev.zipshare.ui.shell.LocalLinkFormat
 import dev.zipshare.ui.search.LocalDynamicSearchEntries
 import dev.zipshare.ui.search.LocalRefreshDynamicSearch
@@ -45,6 +46,7 @@ import dev.zipshare.ui.shell.LocalNavigate
 import dev.zipshare.ui.shell.LocalSignedInUser
 import dev.zipshare.ui.shell.NavItem
 import dev.zipshare.ui.shell.isAdministrator
+import dev.zipshare.ui.shell.isSuperAdministrator
 import dev.zipshare.ui.shell.ZiplineDrawerSheet
 import dev.zipshare.ui.upload.QueueScreen
 import dev.zipshare.ui.upload.UploadTextScreen
@@ -132,10 +134,12 @@ fun AppNav(startAction: String? = null) {
 
     // Pull the live instance-settings keys for admins so search covers whatever this server has,
     // not only the hand-listed common ones. Keyed on the role too, since it arrives after loadMe.
+    // Super admin only: Zipline 4.7+ refuses plain admins (E3015), so asking would always fail.
     val isAdmin = isAdministrator(shell.me?.role)
-    LaunchedEffect(shell.active?.id, isAdmin) { shellVm.loadSettingSearchIndex(isAdmin) }
+    val isSuperAdmin = isSuperAdministrator(shell.me?.role)
+    LaunchedEffect(shell.active?.id, isSuperAdmin) { shellVm.loadSettingSearchIndex(isSuperAdmin) }
     val dynamicSearch by shellVm.settingSearch.collectAsStateWithLifecycle()
-    val refreshDynamicSearch: () -> Unit = remember(isAdmin) { { shellVm.loadSettingSearchIndex(isAdmin) } }
+    val refreshDynamicSearch: () -> Unit = remember(isSuperAdmin) { { shellVm.loadSettingSearchIndex(isSuperAdmin) } }
 
     // Nothing configured yet: sign-in is the whole app, not a page inside it. Gated on
     // profilesReady so a cold start does not flash this before profiles load off disk.
@@ -168,6 +172,7 @@ fun AppNav(startAction: String? = null) {
         LocalLinkFormat provides linkFormat,
         LocalNavigate provides ::go,
         LocalIsAdmin provides isAdmin,
+        LocalIsSuperAdmin provides isSuperAdmin,
         LocalDynamicSearchEntries provides dynamicSearch,
         LocalRefreshDynamicSearch provides refreshDynamicSearch,
     ) {

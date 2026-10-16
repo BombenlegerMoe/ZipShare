@@ -21,6 +21,9 @@ SLOW_UPLOAD = 0.0
 # --fail-upload rejects every upload with a non-retryable 400, which is the only quick way to reach
 # the queue screen's failed row: a retryable error just backs off for 15s and tries again.
 FAIL_UPLOAD = False
+# --legacy-partial speaks the pre-4.8 chunked upload (exclusive range end, one identifier);
+# the default is 4.8's (inclusive end, a single-use token per chunk).
+LEGACY_PARTIAL = False
 
 # Username/password sign-in. Set LOGIN_TOTP=1 in the environment to exercise the two-factor path.
 LOGIN_USER = "zipshare"
@@ -540,7 +543,8 @@ INVITES = [
 
 ZERO_FILES = [{"id": "z1", "name": "broken-1.png"}, {"id": "z2", "name": "broken-2.mp4"}]
 
-# identifier -> bytes accumulated, for the chunked upload endpoint
+# session id -> {"length", "total", "key"} for the chunked upload endpoint; "key" is the
+# identifier (legacy) or the current single-use token (4.8) the next chunk must present.
 PARTIALS = {}
 
 # A representative slice of Zipline's settings object, covering each control type.
@@ -650,6 +654,68 @@ class Handler(BaseHTTPRequestHandler):
         auth = self.headers.get("authorization")
         shown = "none" if not auth else ("VALID" if auth == TOKEN else "WRONG")
         print(f"  {self.command} {self.path}  auth={shown}", flush=True)
+
+    def _partial(self, raw):
+        """Zipline 4.8's chunked upload, or the older one with --legacy-partial.
+
+        Strict about the byte count the way the real route is: a range one byte off is a 1002,
+        not something to tolerate - the previous version of this mock never checked it at all.
+        """
+        h = self.headers
+        rng = h.get("content-range", "")
+        m = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", rng or "")
+        if not m:
+            return self._err(1002, "Invalid partial upload", 400)
+        start, end, total = (int(x) for x in m.groups())
+        last = h.get("x-zipline-p-lastchunk") == "true"
+        data = raw.split(b"\r\n\r\n", 1)[1] if b"\r\n\r\n" in raw else b""
+        received = len(data[: data.rfind(b"\r\n--")])
+        proto = "legacy" if LEGACY_PARTIAL else "token"
+        if LEGACY_PARTIAL:
+            ok = start <= end <= total and end - start == received
+            presented = h.get("x-zipline-p-identifier")
+        else:
+            ok = (start <= end < total and last == (end == total - 1)
+                  and end - start + 1 == received)
+            presented = h.get("x-zipline-p-token")
+
+        if start == 0:
+            ident = f"partial{len(PARTIALS) + 1}"
+            PARTIALS[ident] = {"length": 0, "total": total, "key": ident}
+        else:
+            ident = next((i for i, p in PARTIALS.items()
+                          if presented and p["key"] == presented
+                          and p["length"] == start and p["total"] == total), None)
+            if ident is None:
+                print(f"    !! PARTIAL[{proto}] {rng} unknown session {presented!r}", flush=True)
+                return self._err(1003, "Partial upload token is invalid", 400)
+        sess = PARTIALS[ident]
+        if not ok:
+            PARTIALS.pop(ident, None)
+            print(f"    !! PARTIAL[{proto}] {rng} rejected: {received} bytes received", flush=True)
+            return self._err(1002, "Invalid partial upload", 400)
+        sess["length"] += received
+        print(f"    -> PARTIAL[{proto}] {rng} id={ident} last={last} "
+              f"accumulated={sess['length']}/{total}", flush=True)
+
+        if last:
+            PARTIALS.pop(ident, None)
+            if sess["length"] != total:
+                return self._err(1002, f"assembled {sess['length']} != {total}", 400)
+            n = len(FILES) + 1
+            new = {"id": f"prt{n}", "name": f"chunked-{n}.bin", "type": "application/octet-stream",
+                   "size": total, "url": f"/u/chunked-{n}.bin",
+                   "createdAt": "2026-07-29T12:00:00.000Z", "deletesAt": None, "views": 0,
+                   "favorite": False, "originalName": None, "folderId": None, "thumbnail": None}
+            FILES.insert(0, new)
+            return self._send(200, {"files": [dict(new, pending=True)], "partialSuccess": True})
+        if LEGACY_PARTIAL:
+            body = {"files": [], "partialSuccess": True}
+            if start == 0:
+                body["partialIdentifier"] = ident
+            return self._send(200, body)
+        sess["key"] = f"tok-{ident}-{sess['length']}"
+        return self._send(200, {"files": [], "partialSuccess": True, "partialToken": sess["key"]})
 
     def _send(self, code, body, ctype="application/json", extra_headers=()):
         if isinstance(body, (dict, list)):
@@ -825,6 +891,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/server/clear_zeros":
             return self._send(200, {"files": ZERO_FILES})
         if path == "/api/server/settings":
+            if USER["user"]["role"] != "SUPERADMIN":
+                return self._err(3015, "Not super admin", 403)
             return self._send(200, {"settings": SERVER_SETTINGS, "tampered": TAMPERED})
 
         # Thumbnail paths contain hyphens, which \w does not match - every thumbnail 404'd.
@@ -894,44 +962,7 @@ class Handler(BaseHTTPRequestHandler):
             print(f"    -> upload, {length} bytes -> {new['name']} (now {len(FILES)} files)", flush=True)
             return self._send(200, {"files": [new]})
         if path == "/api/upload/partial":
-            h = self.headers
-            rng = h.get("content-range", "")
-            m = re.match(r"bytes (\d+)-(\d+)/(\d+)", rng or "")
-            if not m:
-                print(f"    !! PARTIAL bad content-range {rng!r}", flush=True)
-                return self._err(1002, "Invalid partial upload", 400)
-            start, end, total = (int(x) for x in m.groups())
-            ident = h.get("x-zipline-p-identifier")
-            last = h.get("x-zipline-p-lastchunk") == "true"
-            fname = h.get("x-zipline-p-filename")
-            clen = h.get("x-zipline-p-content-length")
-
-            # Zipline asserts the received body length matches end-start, and rejects end > total.
-            body_len = len(raw.split(b"\r\n\r\n", 1)[1]) - len(b"\r\n") if b"\r\n\r\n" in raw else 0
-            if end > total:
-                return self._err(1002, "chunk end beyond total", 400)
-            if start == 0:
-                ident = f"partial{len(PARTIALS) + 1}"
-                PARTIALS[ident] = 0
-            if ident not in PARTIALS:
-                return self._err(1003, "Partial upload identifier is invalid", 400)
-            PARTIALS[ident] += end - start
-            print(f"    -> PARTIAL {rng} id={ident} last={last} fname={fname} "
-                  f"declared-total={clen} accumulated={PARTIALS[ident]}", flush=True)
-
-            if last:
-                if PARTIALS[ident] != total:
-                    return self._err(1002, f"assembled {PARTIALS[ident]} != {total}", 400)
-                n = len(FILES) + 1
-                new = {"id": f"prt{n}", "name": f"chunked-{n}.bin", "type": "application/octet-stream",
-                       "size": total, "url": f"/u/chunked-{n}.bin",
-                       "createdAt": "2026-07-29T12:00:00.000Z", "deletesAt": None, "views": 0,
-                       "favorite": False, "originalName": None, "folderId": None, "thumbnail": None}
-                FILES.insert(0, new)
-                return self._send(200, {"files": [dict(new, pending=True)],
-                                        "partialSuccess": True, "partialIdentifier": ident})
-            return self._send(200, {"files": [], "partialSuccess": True,
-                                    "partialIdentifier": ident})
+            return self._partial(raw)
         if path == "/api/auth/login":
             # Login is the one unauthenticated POST: it opens a session rather than returning a
             # token, exactly like the real server. LOGIN_TOTP toggles the two-factor branch.
@@ -1203,6 +1234,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, target)
 
         if path == "/api/server/settings":
+            if USER["user"]["role"] != "SUPERADMIN":
+                return self._err(3015, "Not super admin", 403)
             patch = json.loads(raw or b"{}")
             print(f"    -> settings PATCH: {patch}", flush=True)
             SERVER_SETTINGS.update(patch)
@@ -1331,6 +1364,11 @@ if __name__ == "__main__":
     if "--slow-upload" in sys.argv:
         SLOW_UPLOAD = float(sys.argv[sys.argv.index("--slow-upload") + 1])
     FAIL_UPLOAD = "--fail-upload" in sys.argv
+    LEGACY_PARTIAL = "--legacy-partial" in sys.argv
+    # --role ADMIN signs the mock user in as a plain admin, who since 4.7 may not read or
+    # change server settings.
+    if "--role" in sys.argv:
+        USER["user"]["role"] = sys.argv[sys.argv.index("--role") + 1]
     # Threading: the app holds a keep-alive connection for the API while Coil opens a second
     # one for previews. A single-threaded server would deadlock the image requests behind it.
     srv = ThreadingHTTPServer(("0.0.0.0", port), Handler)
@@ -1340,5 +1378,7 @@ if __name__ == "__main__":
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ctx.load_cert_chain(os.environ.get("MOCK_TLS_CERT", "tls/server.pem"))
         srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
-    print(f"mock zipline on 0.0.0.0:{port} tls={tls} token={TOKEN}", flush=True)
+    partial = "legacy" if LEGACY_PARTIAL else "token"
+    print(f"mock zipline on 0.0.0.0:{port} tls={tls} token={TOKEN} "
+          f"partial={partial} role={USER['user']['role']}", flush=True)
     srv.serve_forever()

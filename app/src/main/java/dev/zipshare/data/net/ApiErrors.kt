@@ -55,6 +55,7 @@ object ApiErrors {
             2001 -> "Invalid token"
             3004 -> "File is password protected"
             3005 -> "Incorrect password"
+            3015 -> "Only the super administrator can open server settings"
             4001 -> "Folder not found"
             5000 -> "File size exceeds the configured limit"
             5001 -> "File is too large"

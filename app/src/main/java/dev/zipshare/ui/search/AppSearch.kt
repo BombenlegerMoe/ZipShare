@@ -63,6 +63,7 @@ import dev.zipshare.ui.Routes
 import dev.zipshare.ui.admin.groupTitle
 import dev.zipshare.ui.admin.settingLabel
 import dev.zipshare.ui.shell.LocalIsAdmin
+import dev.zipshare.ui.shell.LocalIsSuperAdmin
 import dev.zipshare.ui.shell.LocalNavigate
 
 /**
@@ -79,6 +80,8 @@ data class SearchEntry(
     /** Synonyms and the words people actually type; never shown, only matched. */
     val keywords: List<String> = emptyList(),
     val adminOnly: Boolean = false,
+    /** Hidden from a plain admin too: Zipline 4.7+ answers it with E3015. */
+    val superAdminOnly: Boolean = false,
     /**
      * Id of the row to scroll to and flash on arrival, matched against a [dev.zipshare.ui.FocusTarget].
      * Null for entries that are a whole screen, where landing at the top is already the answer.
@@ -131,6 +134,7 @@ fun serverSettingSearchEntry(key: String): SearchEntry {
         // The raw key, so someone reading Zipline's own docs or a config file finds the row.
         keywords = listOf(key.lowercase()),
         adminOnly = true,
+        superAdminOnly = true,
         // The key doubles as the anchor: the screen opens the group holding it and flashes the row.
         anchor = key,
     )
@@ -166,7 +170,7 @@ val appSearchIndex: List<SearchEntry> = listOf(
     SearchEntry("Users", "Administrator", Routes.USERS, Icons.Filled.Group, listOf("accounts", "roles", "quota"), adminOnly = true),
     SearchEntry("Invites", "Administrator", Routes.INVITES, Icons.Filled.Tag, listOf("invite link", "registration", "signup"), adminOnly = true),
     SearchEntry("Server actions", "Administrator", Routes.ADMIN_ACTIONS, Icons.Filled.Bolt, listOf("clear temp", "zero files", "requery size", "thumbnails", "maintenance"), adminOnly = true),
-    SearchEntry("Server settings", "Administrator", Routes.ADMIN_SETTINGS, Icons.Filled.Tune, listOf("instance settings", "core", "chunks", "discord", "oauth", "ratelimit", "tasks", "website", "features"), adminOnly = true),
+    SearchEntry("Server settings", "Administrator", Routes.ADMIN_SETTINGS, Icons.Filled.Tune, listOf("instance settings", "core", "chunks", "discord", "oauth", "ratelimit", "tasks", "website", "features"), adminOnly = true, superAdminOnly = true),
 
     // --- actions ---
     // Things you *do* rather than places you go. They have no anchor because they live in
@@ -283,8 +287,9 @@ fun searchEntries(
     query: String,
     isAdmin: Boolean,
     entries: List<SearchEntry> = appSearchIndex,
+    isSuperAdmin: Boolean = false,
 ): List<SearchEntry> {
-    val visible = entries.filter { !it.adminOnly || isAdmin }
+    val visible = entries.filter { (!it.adminOnly || isAdmin) && (!it.superAdminOnly || isSuperAdmin) }
     val q = query.trim().lowercase()
     if (q.isEmpty()) return visible
 
@@ -317,6 +322,7 @@ fun searchEntries(
 fun SearchAction() {
     val navigate = LocalNavigate.current
     val isAdmin = LocalIsAdmin.current
+    val isSuperAdmin = LocalIsSuperAdmin.current
     val dynamic = LocalDynamicSearchEntries.current
     val refresh = LocalRefreshDynamicSearch.current
     var open by remember { mutableStateOf(false) }
@@ -327,6 +333,7 @@ fun SearchAction() {
         LaunchedEffect(Unit) { refresh() }
         AppSearchDialog(
             isAdmin = isAdmin,
+            isSuperAdmin = isSuperAdmin,
             extraEntries = dynamic,
             onDismiss = { open = false },
             onNavigate = navigate,
@@ -338,6 +345,7 @@ fun SearchAction() {
 @Composable
 fun AppSearchDialog(
     isAdmin: Boolean,
+    isSuperAdmin: Boolean = false,
     extraEntries: List<SearchEntry> = emptyList(),
     onDismiss: () -> Unit,
     onNavigate: (String) -> Unit,
@@ -347,7 +355,7 @@ fun AppSearchDialog(
     LaunchedEffect(Unit) { focus.requestFocus() }
 
     val entries = remember(extraEntries) { mergedSearchEntries(extraEntries) }
-    val results = searchEntries(query, isAdmin, entries)
+    val results = searchEntries(query, isAdmin, entries, isSuperAdmin)
 
     Dialog(
         onDismissRequest = onDismiss,

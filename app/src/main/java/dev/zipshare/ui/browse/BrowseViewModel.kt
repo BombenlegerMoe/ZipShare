@@ -132,11 +132,11 @@ class BrowseViewModel @Inject constructor(
      * Every instance-settings key the active server actually exposes, as search rows, so search
      * covers whatever this Zipline version happens to have rather than only a hand-kept subset.
      * The per-profile fetch, clear-on-switch and stale-response rules live in [SettingSearchIndex];
-     * `/api/server/settings` is admin-only, so failures just fall back to the static seed.
+     * `/api/server/settings` is super-admin-only since Zipline 4.7; failures fall back to the
+     * static seed.
      */
     private val settingSearchIndex = SettingSearchIndex(
         scope = viewModelScope,
-        activeProfileId = { profiles.activeNow()?.id },
         fetchKeys = { id ->
             profiles.byId(id)?.let { profile ->
                 runCatching {
@@ -147,9 +147,9 @@ class BrowseViewModel @Inject constructor(
     )
     val settingSearch: StateFlow<List<SearchEntry>> = settingSearchIndex.entries
 
-    /** Prefetch for admins; safe to call repeatedly - it fetches at most once per server. */
-    fun loadSettingSearchIndex(isAdmin: Boolean) =
-        settingSearchIndex.sync(profiles.activeNow()?.id, isAdmin)
+    /** Prefetch when [canRead]; safe to call repeatedly - it fetches at most once per server. */
+    fun loadSettingSearchIndex(canRead: Boolean) =
+        settingSearchIndex.sync(profiles.activeNow()?.id, canRead)
 
     fun loadFiles(page: Int = _state.value.page, folder: String? = _state.value.folderFilter) =
         launchWithProfile { api, _ ->
