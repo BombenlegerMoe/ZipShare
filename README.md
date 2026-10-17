@@ -143,7 +143,7 @@ photograph them, and the two-factor secret shown is the mock's fixed test value.
 | | |
 |---|---|
 | **Android** | 8.0 (API 26) or newer |
-| **Server** | Zipline v4 |
+| **Server** | Zipline v4 — current 4.8 and older 4.x releases |
 | **Tested on** | Android 8.0 (API 26), 11 (API 30) and 15 (API 35) — full flow: install, profile storage, dashboard sync, upload, notification |
 
 ## Features
@@ -158,8 +158,9 @@ photograph them, and the two-factor secret shown is the mock's fixed test value.
   failure notification is the record that outlives them
 - Optional on-device re-encode to WebP or JPEG before upload, so the phone sends fewer bytes
 - Launcher shortcuts (long-press the icon) and a Quick Settings tile jump straight into an upload
-- Large files switch automatically to Zipline's resumable `/api/upload/partial` endpoint above a
-  configurable threshold
+- Large files switch automatically to Zipline's chunked `/api/upload/partial` endpoint above a
+  configurable threshold — 4.8's token protocol and the older one are both spoken, detected from
+  the server's first answer, and a session lost mid-upload restarts once from the beginning
 - Streamed in 8 KiB chunks straight from the content `Uri` — a multi-GiB file costs 8 KiB of heap,
   never a `ByteArray`
 - Each file is one `CoroutineWorker` with a foreground progress notification; batches run as a
@@ -218,7 +219,7 @@ copied to the clipboard marked sensitive so it stays out of clipboard previews.
 ### Administration
 
 Shown only for `ADMIN` / `SUPERADMIN`: instance metrics with charts, a server-settings editor
-generated from the live API response, server actions (clear temp, clear zero-byte files, re-query
+generated from the live API response (super admin only, as Zipline 4.7+ requires), server actions (clear temp, clear zero-byte files, re-query
 sizes, generate thumbnails) each behind a confirmation, full user management (create, rename, set
 a password, change role and quota, delete with or without their content) and invite management
 (create and revoke).
@@ -376,15 +377,23 @@ in-app player can be tested.
 It logs each request with the multipart filename, part content-type and every `x-zipline-*`
 header, which makes it straightforward to see exactly what the app put on the wire. Pass `--tls`
 to serve HTTPS instead (point `MOCK_TLS_CERT` at a PEM) if you need to exercise the pinning paths.
+Chunked uploads follow Zipline 4.8 by default and check every chunk's byte count like the real
+server; `--legacy-partial` switches to the pre-4.8 protocol. `--role ADMIN` signs in as a plain
+admin, who is refused server settings.
 
 ## API notes
 
 The Zipline v4 contract is pinned from the server source. Two details cost real debugging time and
 are worth knowing if you extend this:
 
-- Partial upload uses `content-range: bytes {start}-{end}/{total}` with an **exclusive** end. The
-  server issues `partialIdentifier` only on the `start == 0` chunk and requires it on every
-  subsequent one, so chunks must be uploaded sequentially.
+- Partial upload changed in 4.8. Now: `content-range: bytes {start}-{end}/{total}` with an
+  **inclusive** end, and every non-final chunk returns a single-use `partialToken` that the next
+  chunk sends as `x-zipline-p-token`. Before 4.8: an **exclusive** end, and one
+  `partialIdentifier` from the first chunk sent as `x-zipline-p-identifier` on every later one.
+  Each version rejects the other's first chunk with E1002, which is how the app tells them apart
+  (`/api/version` is no use: it refuses non-admins on many instances). Either way chunks go
+  strictly in order.
+- Server settings are super-admin only since 4.7 (E3015 for a plain admin).
 - Error responses are `{ error, code, statusCode }`. The `error` string is surfaced verbatim in the
   UI; codes drive side effects (E2001 marks the profile unauthenticated, E4001 clears the saved
   default folder).

@@ -62,6 +62,8 @@ enum class NavItem(
     val label: String,
     val icon: ImageVector,
     val adminOnly: Boolean = false,
+    /** Zipline 4.7+ serves this to the super administrator only, not to every admin. */
+    val superAdminOnly: Boolean = false,
 ) {
     HOME("home", "Home", Icons.Filled.Home),
     METRICS("metrics", "Metrics", Icons.AutoMirrored.Filled.ShowChart),
@@ -70,7 +72,7 @@ enum class NavItem(
     UPLOAD_TEXT("upload/text", "Upload text", Icons.Filled.PostAdd),
     QUEUE("upload/queue", "Upload queue", Icons.Filled.Schedule),
     URLS("urls", "URLs", Icons.Filled.Link),
-    ADMIN_SETTINGS("admin/settings", "Settings", Icons.Filled.Tune, adminOnly = true),
+    ADMIN_SETTINGS("admin/settings", "Settings", Icons.Filled.Tune, adminOnly = true, superAdminOnly = true),
     ADMIN_ACTIONS("admin/actions", "Actions", Icons.Filled.Bolt, adminOnly = true),
     USERS("users", "Users", Icons.Filled.Group, adminOnly = true),
     INVITES("invites", "Invites", Icons.Filled.Tag, adminOnly = true),
@@ -80,6 +82,9 @@ enum class NavItem(
 }
 
 fun isAdministrator(role: String?): Boolean = role == "ADMIN" || role == "SUPERADMIN"
+
+/** Server settings are this role only since Zipline 4.7 (E3015 for a plain admin). */
+fun isSuperAdministrator(role: String?): Boolean = role == "SUPERADMIN"
 
 /**
  * "username - ROLE" for the shell top bar, provided once by AppNav.
@@ -108,6 +113,9 @@ val LocalNavigate = compositionLocalOf<(String) -> Unit> { {} }
 
 /** Whether the signed-in account is an admin, so search can hide destinations it cannot open. */
 val LocalIsAdmin = compositionLocalOf { false }
+
+/** Same, for the destinations only the super administrator can open; see [isSuperAdministrator]. */
+val LocalIsSuperAdmin = compositionLocalOf { false }
 
 @Composable
 fun ZiplineDrawerSheet(
@@ -144,7 +152,9 @@ fun ZiplineDrawerSheet(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                NavItem.entries.filter { it.adminOnly }.forEach { DrawerRow(it, current, onNavigate) }
+                NavItem.entries
+                    .filter { it.adminOnly && (!it.superAdminOnly || isSuperAdministrator(role)) }
+                    .forEach { DrawerRow(it, current, onNavigate) }
             }
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))

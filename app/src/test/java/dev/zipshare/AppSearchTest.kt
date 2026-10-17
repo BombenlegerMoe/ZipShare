@@ -9,8 +9,8 @@ import org.junit.Test
 
 class AppSearchTest {
 
-    private fun titles(query: String, isAdmin: Boolean = true) =
-        searchEntries(query, isAdmin).map { it.title }
+    private fun titles(query: String, isAdmin: Boolean = true, isSuperAdmin: Boolean = isAdmin) =
+        searchEntries(query, isAdmin, isSuperAdmin = isSuperAdmin).map { it.title }
 
     @Test
     fun `an exact screen name ranks above a setting that merely mentions it`() {
@@ -53,9 +53,18 @@ class AppSearchTest {
         assertTrue(titles("server").contains("Server settings"))
     }
 
+    /** Zipline 4.7+ answers a plain admin with E3015 there; offering it would be a dead end. */
+    @Test
+    fun `server settings are hidden from a plain admin`() {
+        val asAdmin = titles("server", isAdmin = true, isSuperAdmin = false)
+        assertFalse(asAdmin.contains("Server settings"))
+        assertTrue("other admin pages stay", asAdmin.contains("Server actions"))
+        assertTrue(titles("mimetypes", isAdmin = true, isSuperAdmin = false).isEmpty())
+    }
+
     @Test
     fun `an empty query lists everything visible`() {
-        assertEquals(appSearchIndex.size, searchEntries("", isAdmin = true).size)
+        assertEquals(appSearchIndex.size, searchEntries("", isAdmin = true, isSuperAdmin = true).size)
         assertTrue(searchEntries("", isAdmin = false).size < appSearchIndex.size)
     }
 

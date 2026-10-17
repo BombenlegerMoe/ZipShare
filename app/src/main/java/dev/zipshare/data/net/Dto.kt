@@ -14,7 +14,10 @@ data class UploadResponse(
     val assumedMimetypes: List<Boolean>? = null,
     // partial-upload only
     val partialSuccess: Boolean? = null,
+    /** Zipline before 4.8: issued on the first chunk, repeated on every later one. */
     val partialIdentifier: String? = null,
+    /** Zipline 4.8+: single-use, a fresh one on every non-final chunk for the next. */
+    val partialToken: String? = null,
 )
 
 @Serializable

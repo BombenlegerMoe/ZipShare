@@ -28,7 +28,7 @@ class DynamicSettingSearchTest {
     private val merged = mergedSearchEntries(liveKeys.map(::serverSettingSearchEntry))
 
     private fun titles(query: String, admin: Boolean = true) =
-        searchEntries(query, admin, merged).map { it.title }
+        searchEntries(query, admin, merged, isSuperAdmin = admin).map { it.title }
 
     @Test
     fun `the anchor is the raw key so the screen can jump to that row`() {
@@ -36,6 +36,7 @@ class DynamicSettingSearchTest {
         assertEquals("oauthDiscordClientId", e.anchor)
         assertEquals(Routes.ADMIN_SETTINGS, e.route)
         assertTrue(e.adminOnly)
+        assertTrue("Zipline 4.7+ serves settings to the super admin only", e.superAdminOnly)
         // Group is the leading lowercase run, mapped through the same acronym table the screen uses.
         assertEquals("Server settings > OAuth", e.where)
     }
@@ -66,7 +67,7 @@ class DynamicSettingSearchTest {
     fun `a live key overlapping the static seed is not listed twice`() {
         // featuresOauthRegistration is already in the static seed; feed it as a live key too.
         val withOverlap = mergedSearchEntries(listOf(serverSettingSearchEntry("featuresOauthRegistration")))
-        val hits = searchEntries("oauth registration", isAdmin = true, withOverlap)
+        val hits = searchEntries("oauth registration", isAdmin = true, withOverlap, isSuperAdmin = true)
             .filter { it.anchor == "featuresOauthRegistration" }
         assertEquals(1, hits.size)
     }
