@@ -111,7 +111,8 @@ fun VideoPlayer(url: String, client: OkHttpClient, modifier: Modifier = Modifier
 }
 
 /**
- * Tracks picture-in-picture state so the player can drop its chrome while docked.
+ * Tracks picture-in-picture state so the player, and the viewer around it, can drop their chrome
+ * while docked.
  *
  * Docking is a configuration change (the window resizes), so reading [LocalConfiguration] is enough
  * to recompose on entry and exit - no listener to register or unregister. The activity itself is
@@ -119,7 +120,7 @@ fun VideoPlayer(url: String, client: OkHttpClient, modifier: Modifier = Modifier
  * restart from zero every time the window docked.
  */
 @Composable
-private fun rememberIsInPip(): Boolean {
+internal fun rememberIsInPip(): Boolean {
     val activity = LocalContext.current.findActivity()
     val configuration = LocalConfiguration.current
     return remember(configuration, activity) { activity?.isInPictureInPictureMode == true }

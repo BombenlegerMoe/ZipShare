@@ -51,6 +51,7 @@ import kotlinx.coroutines.launch
 import dev.zipshare.data.model.formatLink
 import dev.zipshare.ui.shell.LocalLinkFormat
 import androidx.core.net.toUri
+import dev.zipshare.ui.rememberCopyText
 
 /**
  * Full-screen viewer. Pinch to zoom, drag to pan once zoomed, double-tap to toggle 1x/2.5x,
@@ -75,13 +76,15 @@ fun ImageViewerScreen(
     val playerClient by vm.client.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val copyText = rememberCopyText()
     val linkFormat = LocalLinkFormat.current
 
     var scale by remember { mutableFloatStateOf(1f) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
     var chromeVisible by remember { mutableStateOf(true) }
+    // The PiP window should show the video alone, not a copy/share bar squeezed above it.
+    val inPip = rememberIsInPip()
 
     fun reset() {
         scale = 1f
@@ -93,7 +96,7 @@ fun ImageViewerScreen(
         containerColor = Color.Black,
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            AnimatedVisibility(visible = chromeVisible) {
+            AnimatedVisibility(visible = chromeVisible && !inPip) {
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.Black.copy(alpha = 0.65f),
@@ -117,11 +120,7 @@ fun ImageViewerScreen(
                     actions = {
                         IconButton(
                             onClick = {
-                                clipboard.setText(
-                                    androidx.compose.ui.text.AnnotatedString(
-                                        formatLink(name, shareUrl, linkFormat),
-                                    ),
-                                )
+                                copyText(formatLink(name, shareUrl, linkFormat))
                                 scope.launch { snackbar.showSnackbar("Link copied") }
                             },
                             colors = IconButtonDefaults.iconButtonColors(contentColor = Color.White),

@@ -39,8 +39,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.zipshare.ui.rememberCopyText
 
 /**
  * In-app viewer and editor for text uploads.
@@ -67,7 +66,7 @@ fun TextViewerScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    val clipboard = LocalClipboardManager.current
+    val copyText = rememberCopyText()
     var editing by remember { mutableStateOf(false) }
     var saveDialog by remember { mutableStateOf(false) }
 
@@ -102,7 +101,7 @@ fun TextViewerScreen(
                 title = { Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 actions = {
                     IconButton(
-                        onClick = { clipboard.setText(AnnotatedString(state.text)) },
+                        onClick = { copyText(state.text) },
                         enabled = !state.loading,
                     ) { Icon(Icons.Filled.ContentCopy, "Copy contents") }
 
