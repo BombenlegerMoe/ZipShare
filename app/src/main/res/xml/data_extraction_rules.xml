@@ -2,6 +2,7 @@
 <data-extraction-rules>
     <cloud-backup disableIfNoEncryptionCapabilities="true">
         <exclude domain="sharedpref" path="zipshare_secure.xml" />
+        <exclude domain="sharedpref" path="zipshare_vault.xml" />
         <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs__.xml" />
         <exclude domain="file" path="datastore/" />
         <exclude domain="database" path="zipshare.db" />
@@ -10,6 +11,7 @@
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="zipshare_secure.xml" />
+        <exclude domain="sharedpref" path="zipshare_vault.xml" />
         <exclude domain="sharedpref" path="__androidx_security_crypto_encrypted_prefs__.xml" />
         <exclude domain="file" path="datastore/" />
         <exclude domain="database" path="zipshare.db" />
