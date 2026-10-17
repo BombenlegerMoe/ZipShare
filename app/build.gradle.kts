@@ -48,7 +48,7 @@ tasks.matching { it.name == "assembleRelease" }.configureEach {
 
 android {
     namespace = "dev.zipshare"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "dev.zipshare"
@@ -80,13 +80,13 @@ android {
         // CI runs lintRelease and the build fails on anything left enabled, so the few checks
         // below are turned off deliberately rather than tolerated as standing noise.
 
-        // Dependency currency is Dependabot's job - it already opens PRs for these, and two are
-        // open right now blocked upstream. Having lint shout about the same versions would either
-        // duplicate that or push us into bumping past what the toolchain supports.
+        // Dependency currency is Dependabot's job - it already opens PRs for these. Having lint
+        // shout about the same versions would duplicate that or push us into bumping past what
+        // the toolchain supports.
         disable += setOf("GradleDependency", "NewerVersionAvailable", "AndroidGradlePluginVersion")
 
-        // targetSdk 36 is the newest stable. The next one exists only as a preview, which is the
-        // same reason the androidx Dependabot PR cannot merge.
+        // compileSdk is 37 because current androidx requires it; targetSdk stays 36 on purpose.
+        // Raising it opts into Android 17 behaviour changes, which deserve their own device pass.
         disable += "OldTargetApi"
 
         // allowBackup="false" already disables every form of backup below Android 12, which is
@@ -169,7 +169,7 @@ dependencies {
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
-    implementation(libs.androidx.hilt.navigation.compose)
+    implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
     implementation(libs.androidx.hilt.work)
     ksp(libs.androidx.hilt.compiler)
 
