@@ -17,16 +17,15 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
-import androidx.core.content.edit
 
 /**
- * Profiles (including tokens) live only in EncryptedSharedPreferences. Nothing here is logged.
+ * Profiles (including tokens) live only in [SecureStore]. Nothing here is logged.
  *
- * Nothing touches disk in the constructor. Opening EncryptedSharedPreferences pulls in the
- * Keystore and Tink, which costs hundreds of milliseconds on first use - and Hilt builds this
- * singleton on the main thread during first composition, so doing it here used to block the
- * first frame (StrictMode DiskReadViolation, ~1s on an emulator). The initial read now happens
- * on an IO coroutine and callers that need certainty use [awaitReady].
+ * Nothing touches disk in the constructor. Opening the secure store pulls in the Keystore (and,
+ * once, the migration off the old encrypted prefs), which costs hundreds of milliseconds on first
+ * use - and Hilt builds this singleton on the main thread during first composition, so doing it
+ * here used to block the first frame (StrictMode DiskReadViolation, ~1s on an emulator). The
+ * initial read now happens on an IO coroutine and callers that need certainty use [awaitReady].
  */
 @Singleton
 class ProfileRepository @Inject constructor(
@@ -54,7 +53,7 @@ class ProfileRepository @Inject constructor(
     init {
         scope.launch {
             val loaded = load()
-            val storedActive = runCatching { secure.prefs.getString(KEY_ACTIVE, null) }.getOrNull()
+            val storedActive = runCatching { secure.getString(KEY_ACTIVE) }.getOrNull()
             _profiles.value = loaded
             _activeId.value = storedActive
             _ready.value = true
@@ -101,7 +100,7 @@ class ProfileRepository @Inject constructor(
         _activeId.value = id
         // Encrypting the write is cheap once warm, but keep it off the caller's thread regardless.
         scope.launch {
-            secure.prefs.edit { if (id == null) remove(KEY_ACTIVE) else putString(KEY_ACTIVE, id) }
+            secure.putString(KEY_ACTIVE, id)
         }
     }
 
@@ -111,15 +110,13 @@ class ProfileRepository @Inject constructor(
     }
 
     private fun load(): List<Profile> = runCatching {
-        secure.prefs.getString(KEY_PROFILES, null)
+        secure.getString(KEY_PROFILES)
             ?.let { json.decodeFromString(ListSerializer(Profile.serializer()), it) }
     }.getOrNull() ?: emptyList()
 
     private fun persist(list: List<Profile>) {
         scope.launch {
-            secure.prefs.edit {
-                putString(KEY_PROFILES, json.encodeToString(ListSerializer(Profile.serializer()), list))
-            }
+            secure.putString(KEY_PROFILES, json.encodeToString(ListSerializer(Profile.serializer()), list))
         }
     }
 
