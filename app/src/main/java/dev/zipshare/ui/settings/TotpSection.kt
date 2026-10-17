@@ -29,15 +29,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.zipshare.data.model.otpauthUri
 import dev.zipshare.ui.SecureScreen
 import dev.zipshare.ui.rememberDataUrlBitmap
 import androidx.core.net.toUri
+import dev.zipshare.ui.rememberCopyText
 
 /**
  * Two-factor enrollment, mirroring the web dashboard's MFA panel.
@@ -51,7 +50,7 @@ import androidx.core.net.toUri
 fun TotpSection(username: String?, vm: SettingsViewModel) {
     val state by vm.totp.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val clipboard = LocalClipboardManager.current
+    val copyText = rememberCopyText()
 
     LaunchedEffect(Unit) { vm.loadTotp() }
 
@@ -98,7 +97,7 @@ fun TotpSection(username: String?, vm: SettingsViewModel) {
                     openInAuthenticator(context, otpauthUri(state.secret.orEmpty(), username.orEmpty()))
                 }) { Text("Add to authenticator app") }
                 TextButton(onClick = {
-                    clipboard.setText(AnnotatedString(state.secret.orEmpty()))
+                    copyText(state.secret.orEmpty())
                 }) { Text("Copy secret") }
             }
 

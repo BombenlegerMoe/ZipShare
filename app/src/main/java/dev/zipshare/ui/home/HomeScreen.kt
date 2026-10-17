@@ -47,8 +47,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -78,6 +76,7 @@ import dev.zipshare.ui.upload.fileDropTarget
 import java.text.DateFormat
 import java.util.Date
 import kotlin.math.roundToInt
+import dev.zipshare.ui.rememberCopyText
 
 /**
  * Rows written before uploads stored an absolute link kept the server's route-relative `/u/name`,
@@ -111,7 +110,7 @@ fun HomeScreen(
     val entries by vm.entries.collectAsStateWithLifecycle()
     val cfg by vm.appSettings.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    val clipboard = LocalClipboardManager.current
+    val copyText = rememberCopyText()
     val linkFormat = LocalLinkFormat.current
     val recentsScroll = rememberLazyListState()
 
@@ -338,11 +337,7 @@ fun HomeScreen(
                                     // has and did nothing at all for a non-previewable type.
                                     onOpen = { detailFor = file },
                                     onCopy = {
-                                        clipboard.setText(
-                                            AnnotatedString(
-                                                formatLink(file.name, file.shareUrl(base), linkFormat),
-                                            ),
-                                        )
+                                        copyText(formatLink(file.name, file.shareUrl(base), linkFormat))
                                     },
                                 )
                             }
@@ -459,11 +454,7 @@ fun HomeScreen(
                         HistoryRow(
                             entry = entry,
                             onCopy = {
-                                clipboard.setText(
-                                    AnnotatedString(
-                                        formatLink(entry.name, absolute(entry.remoteUrl, base), linkFormat),
-                                    ),
-                                )
+                                copyText(formatLink(entry.name, absolute(entry.remoteUrl, base), linkFormat))
                             },
                             onDelete = { vm.delete(entry) },
                         )

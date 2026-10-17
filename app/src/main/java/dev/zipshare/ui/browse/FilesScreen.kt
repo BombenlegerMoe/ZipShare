@@ -65,8 +65,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -91,6 +89,7 @@ import dev.zipshare.ui.shell.LocalLinkFormat
 import dev.zipshare.ui.shell.PullRefresh
 import dev.zipshare.ui.shell.ShellTopBar
 import kotlinx.coroutines.delay
+import dev.zipshare.ui.rememberCopyText
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -105,7 +104,7 @@ fun FilesScreen(
     val state by vm.state.collectAsStateWithLifecycle()
     val linkFormat = LocalLinkFormat.current
     val snackbar = remember { SnackbarHostState() }
-    val clipboard = LocalClipboardManager.current
+    val copyText = rememberCopyText()
     val base = state.active?.baseUrl.orEmpty()
 
     var searchOpen by remember { mutableStateOf(false) }
@@ -356,7 +355,7 @@ fun FilesScreen(
                                 selected = file.id in state.selected,
                                 onClick = { open(file) },
                                 onLongClick = { vm.startSelecting(file.id) },
-                                onCopy = { clipboard.setText(AnnotatedString(formatLink(file.name, file.shareUrl(base), linkFormat))) },
+                                onCopy = { copyText(formatLink(file.name, file.shareUrl(base), linkFormat)) },
                             )
                         }
                     }
@@ -369,7 +368,7 @@ fun FilesScreen(
                                 selected = file.id in state.selected,
                                 onClick = { open(file) },
                                 onLongClick = { vm.startSelecting(file.id) },
-                                onCopy = { clipboard.setText(AnnotatedString(formatLink(file.name, file.shareUrl(base), linkFormat))) },
+                                onCopy = { copyText(formatLink(file.name, file.shareUrl(base), linkFormat)) },
                             )
                         }
                     }

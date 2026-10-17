@@ -47,8 +47,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -60,6 +58,7 @@ import dev.zipshare.data.net.shortLink
 import dev.zipshare.ui.shell.EmptyOrError
 import dev.zipshare.ui.shell.PullRefresh
 import dev.zipshare.ui.shell.ShellTopBar
+import dev.zipshare.ui.rememberCopyText
 
 /**
  * The frame the three list pages share: top bar, add button, pull-to-refresh, and the switch
@@ -193,7 +192,7 @@ fun FoldersScreen(
 @Composable
 fun UrlsScreen(onMenu: () -> Unit, vm: BrowseViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
-    val clipboard = LocalClipboardManager.current
+    val copyText = rememberCopyText()
     val base = state.active?.baseUrl.orEmpty().trimEnd('/')
     var creating by remember { mutableStateOf(false) }
 
@@ -247,7 +246,7 @@ fun UrlsScreen(onMenu: () -> Unit, vm: BrowseViewModel = hiltViewModel()) {
                 }
             },
             modifier = Modifier.clickable {
-                clipboard.setText(AnnotatedString(url.shortLink(base)))
+                copyText(url.shortLink(base))
             },
         )
     }

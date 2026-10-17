@@ -31,8 +31,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -41,13 +39,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.zipshare.data.model.formatLink
 import dev.zipshare.ui.shell.LocalLinkFormat
 import dev.zipshare.ui.shell.ShellTopBar
+import dev.zipshare.ui.rememberCopyText
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun UploadTextScreen(onMenu: () -> Unit, vm: UploadTextViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    val clipboard = LocalClipboardManager.current
+    val copyText = rememberCopyText()
     val linkFormat = LocalLinkFormat.current
 
     LaunchedEffect(state.error) { state.error?.let { snackbar.showSnackbar(it); vm.clearError() } }
@@ -119,11 +118,7 @@ fun UploadTextScreen(onMenu: () -> Unit, vm: UploadTextViewModel = hiltViewModel
                         }
                         IconButton(
                             onClick = {
-                                clipboard.setText(
-                                    AnnotatedString(
-                                        formatLink(url.substringAfterLast('/'), url, linkFormat),
-                                    ),
-                                )
+                                copyText(formatLink(url.substringAfterLast('/'), url, linkFormat))
                             },
                         ) {
                             Icon(Icons.Filled.ContentCopy, "Copy link")

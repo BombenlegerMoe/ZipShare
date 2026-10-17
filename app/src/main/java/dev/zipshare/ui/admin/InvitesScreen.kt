@@ -35,8 +35,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -46,6 +44,7 @@ import dev.zipshare.ui.shell.PullRefresh
 import dev.zipshare.ui.shell.ShellTopBar
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import dev.zipshare.ui.rememberCopyText
 
 private val EXPIRY_PRESETS = listOf(
     "never" to null,
@@ -58,7 +57,7 @@ private val EXPIRY_PRESETS = listOf(
 fun InvitesScreen(onMenu: () -> Unit, vm: AdminViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
-    val clipboard = LocalClipboardManager.current
+    val copyText = rememberCopyText()
     var creating by remember { mutableStateOf(false) }
     var expiryDays by remember { mutableStateOf<Long?>(null) }
     var maxUses by remember { mutableStateOf("") }
@@ -119,7 +118,7 @@ fun InvitesScreen(onMenu: () -> Unit, vm: AdminViewModel = hiltViewModel()) {
                             },
                             // Tapping copies the join link, which is the point of an invite.
                             modifier = Modifier.clickable {
-                                clipboard.setText(AnnotatedString("$base/invite/${invite.code}"))
+                                copyText("$base/invite/${invite.code}")
                             },
                         )
                     }
