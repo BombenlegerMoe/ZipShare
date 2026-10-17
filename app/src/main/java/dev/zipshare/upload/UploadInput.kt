@@ -2,7 +2,9 @@ package dev.zipshare.upload
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
 import java.io.File
@@ -10,6 +12,39 @@ import java.io.FileOutputStream
 import java.io.IOException
 
 data class FileMeta(val name: String, val size: Long, val mime: String)
+
+/**
+ * Whether a uri handed in from outside - share target, file picker, drag and drop - may be read
+ * for upload. This app opens it with its own identity, so a `file://` path, or a uri on one of its
+ * own providers, would let any other app make it upload its private files (the history database,
+ * exports, the server backup). Only `content://` from someone else's provider passes.
+ *
+ * Refusing `file://` costs nothing legitimate: the app holds no storage permission, so no foreign
+ * file path was ever readable anyway, and Android stopped apps sharing them in 7.0.
+ */
+internal fun isForeignContent(scheme: String?, authority: String?, ownAuthorities: Set<String>): Boolean =
+    scheme.equals("content", ignoreCase = true) &&
+        !authority.isNullOrBlank() &&
+        authority.lowercase() !in ownAuthorities
+
+/**
+ * Every authority this app's own providers answer to, lowercased, read from the installed package
+ * rather than assumed from a naming convention - libraries add providers of their own.
+ */
+internal fun ownAuthorities(context: Context): Set<String> {
+    val pm = context.packageManager
+    val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        pm.getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(PackageManager.GET_PROVIDERS.toLong()))
+    } else {
+        @Suppress("DEPRECATION")
+        pm.getPackageInfo(context.packageName, PackageManager.GET_PROVIDERS)
+    }
+    return info.providers.orEmpty()
+        .flatMap { it.authority.orEmpty().split(';') }
+        .map { it.trim().lowercase() }
+        .filter { it.isNotEmpty() }
+        .toSet()
+}
 
 object UploadInput {
 
