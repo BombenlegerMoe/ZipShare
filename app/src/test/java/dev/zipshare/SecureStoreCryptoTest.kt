@@ -1,5 +1,6 @@
 package dev.zipshare
 
+import dev.zipshare.data.prefs.isPermanentLoss
 import dev.zipshare.data.prefs.sealAll
 import dev.zipshare.data.prefs.seal
 import dev.zipshare.data.prefs.unseal
@@ -85,5 +86,23 @@ class SecureStoreCryptoTest {
     @Test
     fun `an empty legacy store verifies`() {
         assertTrue(verifyMigrated(key, emptyMap<String, Any>(), sealAll(key, emptyMap<String, Any>())::get))
+    }
+
+    private fun failure(block: () -> Unit): Throwable = runCatching(block).exceptionOrNull()!!
+
+    /** These, and only these, may wipe the store: the data can never be read again. */
+    @Test
+    fun `a wrong key or garbage bytes count as permanent loss`() {
+        assertTrue(isPermanentLoss(failure { unseal(newKey(), "k", seal(key, "k", "secret")) }))
+        assertTrue(isPermanentLoss(failure { unseal(key, "k", "not base64 !!!") }))
+        assertTrue(isPermanentLoss(failure { unseal(key, "k", Base64.getEncoder().encodeToString(byteArrayOf(1, 2, 3))) }))
+    }
+
+    /** A Keystore that is briefly unavailable must leave the profiles alone. */
+    @Test
+    fun `a transient keystore failure does not`() {
+        assertFalse(isPermanentLoss(java.security.KeyStoreException("busy")))
+        assertFalse(isPermanentLoss(java.security.ProviderException("keystore2 died")))
+        assertFalse(isPermanentLoss(IllegalStateException("not ready")))
     }
 }

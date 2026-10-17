@@ -10,6 +10,7 @@ import dev.zipshare.log.AppLog
 import java.io.File
 import java.security.KeyStore
 import java.util.Base64
+import javax.crypto.BadPaddingException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -57,6 +58,15 @@ internal fun unseal(key: SecretKey, name: String, sealed: String): String {
     return String(cipher.doFinal(bytes, GCM_IV_BYTES, bytes.size - GCM_IV_BYTES), Charsets.UTF_8)
 }
 
+/**
+ * Whether [e], thrown while opening the migrated store, proves its data is gone for good: the tag
+ * no longer verifies (a different or reset key) or the stored bytes are garbage. Anything else -
+ * a busy or briefly failing Keystore - may pass, and wiping the store over it would throw away
+ * every profile and token for nothing.
+ */
+internal fun isPermanentLoss(e: Throwable): Boolean =
+    e is BadPaddingException || e is IllegalArgumentException
+
 /** Every non-null legacy entry sealed under its own name. Values are stored as strings (longs included). */
 internal fun sealAll(key: SecretKey, entries: Map<String, *>): Map<String, String> =
     entries.mapNotNull { (name, value) -> value?.let { name to seal(key, name, it.toString()) } }.toMap()
@@ -103,14 +113,22 @@ class SecureStore @Inject constructor(@ApplicationContext private val context: C
     private fun open(): Opened {
         val prefs = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
         prefs.getString(KEY_MIGRATED, null)?.let { marker ->
-            val key = runCatching { keystoreKey() }.getOrNull()
-            if (key != null && runCatching { unseal(key, KEY_MIGRATED, marker) }.isSuccess) {
-                // A crash between the marker commit and the delete leaves the old file behind.
-                if (legacyExists()) context.deleteSharedPreferences(LEGACY_FILE)
-                return Opened(prefs, key)
+            // Only a definite answer may wipe the store. A Keystore exception here is rethrown with
+            // the data untouched, so the next access or launch simply tries again.
+            val key = keystore().getKey(KEY_ALIAS, null) as SecretKey?
+            if (key != null) {
+                try {
+                    unseal(key, KEY_MIGRATED, marker)
+                    // A crash between the marker commit and the delete leaves the old file behind.
+                    if (legacyExists()) context.deleteSharedPreferences(LEGACY_FILE)
+                    return Opened(prefs, key)
+                } catch (e: Exception) {
+                    if (!isPermanentLoss(e)) throw e
+                }
             }
-            // The Keystore key is gone or unusable (e.g. a Keystore reset): nothing sealed under it
-            // can ever be read again. Start over, and say so rather than silently signing the user out.
+            // The key is gone or no longer opens this file (e.g. a Keystore reset): nothing sealed
+            // under it can ever be read again. Start over, and say so rather than silently signing
+            // the user out.
             prefs.edit(commit = true) { clear() }
             deleteKeystoreKey()
             flagReset()
