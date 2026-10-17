@@ -48,6 +48,9 @@ OPEN_REGISTRATION = os.environ.get("OPEN_REGISTRATION") == "1"
 
 # Video playback. Put any .mp4 at this path (default: sample.mp4 beside this script) and the
 # file below is served from it, so the in-app player can be exercised without a real instance.
+# Use an ordinary constant-frame-rate clip: a screen recording keeps only the frames where the
+# screen changed (one had 3 frames in 27 s), and emulator decoders then sit on a black first
+# frame for seconds - which looks exactly like a broken player.
 VIDEO_ID = "vid1"
 VIDEO_PATH = os.environ.get("MOCK_VIDEO", os.path.join(os.path.dirname(__file__), "sample.mp4"))
 
@@ -904,7 +907,12 @@ class Handler(BaseHTTPRequestHandler):
             if fid == TEXT_ID:
                 print("    -> serving text body", flush=True)
                 return self._send(200, TEXT_BODY.encode(), "text/markdown; charset=utf-8")
-            if fid == VIDEO_ID and os.path.exists(VIDEO_PATH):
+            if fid == VIDEO_ID:
+                # Missing file used to fall through to the image branch and die on int("vid1"),
+                # which closes the socket - the app then reports a truncated response, not a 404.
+                if not os.path.exists(VIDEO_PATH):
+                    print(f"    !! no video at {VIDEO_PATH}", flush=True)
+                    return self._err(4000, "No video file on the mock", 404)
                 data = open(VIDEO_PATH, "rb").read()
                 return self._send_ranged(data, "video/mp4")
             # The animated original vs its static thumbnail - the app must request the former.
