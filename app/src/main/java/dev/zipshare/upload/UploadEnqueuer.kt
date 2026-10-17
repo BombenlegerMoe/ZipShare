@@ -36,6 +36,17 @@ class UploadEnqueuer @Inject constructor(
         withContext(Dispatchers.IO) {
             require(uris.isNotEmpty()) { "no files selected" }
 
+            // The trust boundary: every way in (share, picker, drop) passes here before anything is
+            // read. A batch carrying even one refused uri is suspect, so none of it is uploaded.
+            val own = ownAuthorities(context)
+            val refused = uris.count { !isForeignContent(it.scheme, it.authority, own) }
+            if (refused > 0) {
+                // Counts only - a refused path is exactly what must not land in the log.
+                AppLog.log("upload", "refused a batch: $refused of ${uris.size} uri(s) not shared content")
+                // Short enough for a two-line toast, which is where the share target shows it.
+                throw IllegalArgumentException("Not uploaded: that app sent a file path, not the file itself.")
+            }
+
             // One override name cannot apply to a batch - the server would name every file the
             // same. The sheet hides the field for batches, but the option can still arrive here
             // through other paths (e.g. share-target multi-select), so drop it at the choke point.
