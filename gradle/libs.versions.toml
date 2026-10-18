@@ -1,5 +1,5 @@
 [versions]
-agp = "9.3.1"
+agp = "9.4.1"
 # KSP is versioned on its own since 2.3.0 and runs on any recent Kotlin, so the two no longer
 # have to match. Hilt and Room still go through it: move them together and let CI confirm.
 kotlin = "2.4.21"
