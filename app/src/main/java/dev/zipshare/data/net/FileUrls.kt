@@ -78,6 +78,3 @@ fun ZFile.viewerUrl(baseUrl: String): String =
 /** Opens in the full-screen viewer: images, anything with a thumbnail, and playable media. */
 fun ZFile.hasVisualPreview(): Boolean =
     type.startsWith("image/") || thumbnail != null || isPlayable()
-
-/** True when tapping the file should open something in-app rather than just copy its link. */
-fun ZFile.isOpenable(): Boolean = hasVisualPreview() || isTextLike()

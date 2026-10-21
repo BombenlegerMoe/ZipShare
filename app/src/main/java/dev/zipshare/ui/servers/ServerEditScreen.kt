@@ -203,6 +203,13 @@ fun ServerEditScreen(
             )
             OutlinedButton(onClick = vm::fetchPins) { Text("Fetch current pin") }
             state.chainError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            val recommended = state.chain.filter { it.recommended }.map { it.pin }
+            if (recommended.isNotEmpty()) {
+                // All of them at once: the server keeps working if the CA switches intermediates.
+                Button(onClick = { vm.update(p.copy(pinnedSpkiSha256 = recommended.joinToString(","))) }) {
+                    Text("Pin recommended (${recommended.size})")
+                }
+            }
             state.chain.forEach { link ->
                 Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -231,26 +238,21 @@ fun ServerEditScreen(
                         )
 
                         CertRole.ROOT -> Text(
-                            "Long-lived, but pinning a public root gives you little over normal " +
-                                "certificate validation.",
+                            "Long-lived. Pinned together with the intermediate, it keeps the pin " +
+                                "valid when the CA issues from a different intermediate.",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
 
                         CertRole.INTERMEDIATE -> Text(
-                            "Stable for years and survives leaf renewals - the safe choice.",
+                            "Survives leaf renewals, but some CAs (Let's Encrypt) pick one of " +
+                                "several intermediates at random - pin it only together with the root.",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    if (link.recommended) {
-                        Button(onClick = { vm.update(p.copy(pinnedSpkiSha256 = link.pin)) }) {
-                            Text("Pin this (recommended)")
-                        }
-                    } else {
-                        TextButton(onClick = { vm.update(p.copy(pinnedSpkiSha256 = link.pin)) }) {
-                            Text("Pin this anyway")
-                        }
+                    TextButton(onClick = { vm.update(p.copy(pinnedSpkiSha256 = link.pin)) }) {
+                        Text("Pin only this")
                     }
                 }
             }

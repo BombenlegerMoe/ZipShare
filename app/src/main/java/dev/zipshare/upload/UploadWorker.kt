@@ -110,7 +110,16 @@ class UploadWorker @AssistedInject constructor(
 
         var outcome: Result? = null
         try {
-            outcome = uploadOnce(profile, profileId, uri, staged, meta, options, cfg, notificationId)
+            outcome = if (passwordWasLost(secretId, options.password)) {
+                // The stashed password was swept or lost while this upload waited. Sending the file
+                // without it would publish what the user asked to protect, so refuse instead.
+                val msg = "Upload password was lost - nothing was uploaded. Upload the file again."
+                AppLog.log("upload", "failed ${meta.name}: password lost")
+                if (cfg.notifyFailed) notifications.failure(meta.name, msg)
+                fail(msg, meta.name)
+            } else {
+                uploadOnce(profile, profileId, uri, staged, meta, options, cfg, notificationId)
+            }
             outcome
         } finally {
             // Reached on cancellation too, where `outcome` is still null - and cancellation is
@@ -358,3 +367,7 @@ class UploadWorker @AssistedInject constructor(
         )
     }
 }
+
+/** A password was requested for this upload ([secretId] set) but is no longer stored. */
+internal fun passwordWasLost(secretId: String?, password: String?): Boolean =
+    secretId != null && password == null
