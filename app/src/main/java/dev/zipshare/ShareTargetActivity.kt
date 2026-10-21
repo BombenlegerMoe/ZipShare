@@ -1,5 +1,6 @@
 package dev.zipshare
 
+import android.app.AlertDialog
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -22,6 +23,8 @@ import dev.zipshare.upload.UploadNotifications
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
@@ -113,11 +116,26 @@ class ShareTargetActivity : ComponentActivity() {
                 return@launch
             }
 
+            // Any installed app can start this activity directly, without the share sheet and
+            // without the user. Unless they chose instant uploads, ask before acting on their server.
+            val cfg = settings.current()
+            if (!cfg.skipUploadSheet) {
+                val question = if (link != null) {
+                    "Shorten this link on ${profile.label}?\n\n$link"
+                } else {
+                    "Upload ${uris.size} file(s) to ${profile.label}?"
+                }
+                if (!confirm(question)) {
+                    finish()
+                    return@launch
+                }
+            }
+
             if (link != null) {
                 shorten(link, profile)
                 return@launch
             }
-            val options = settings.current().defaultOptions
+            val options = cfg.defaultOptions
             runCatching { enqueuer.enqueue(uris, profile.id, options) }
                 .onSuccess { toastAndFinish("Uploading ${uris.size} file(s) to ${profile.label}") }
                 .onFailure { toastAndFinish(it.message ?: "Could not start the upload.") }
@@ -149,6 +167,17 @@ class ShareTargetActivity : ComponentActivity() {
         Intent.ACTION_SEND -> listOfNotNull(intent.parcelable<Uri>(Intent.EXTRA_STREAM))
         Intent.ACTION_SEND_MULTIPLE -> intent.parcelableList<Uri>(Intent.EXTRA_STREAM).orEmpty()
         else -> emptyList()
+    }
+
+    /** True only on an explicit "yes"; back, an outside tap or the activity going away all mean no. */
+    private suspend fun confirm(message: String): Boolean = suspendCancellableCoroutine { cont ->
+        val dialog = AlertDialog.Builder(this)
+            .setMessage(message)
+            .setPositiveButton("Yes") { _, _ -> if (cont.isActive) cont.resume(true) }
+            .setNegativeButton("Cancel") { _, _ -> if (cont.isActive) cont.resume(false) }
+            .setOnDismissListener { if (cont.isActive) cont.resume(false) }
+            .show()
+        cont.invokeOnCancellation { dialog.dismiss() }
     }
 
     private fun toastAndFinish(message: String) {

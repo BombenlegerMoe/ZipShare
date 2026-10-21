@@ -350,7 +350,8 @@ fun SettingsScreen(
                 Column(Modifier.padding(start = 8.dp)) {
                     Text("Upload immediately")
                     Text(
-                        "Skip the options sheet and always use these settings.",
+                        "Skip the options sheet and always use these settings. Files and links " +
+                            "shared from other apps then go up without asking, too.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

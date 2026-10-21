@@ -15,6 +15,8 @@ import dagger.hilt.components.SingletonComponent
 import dev.zipshare.data.ProfileRepository
 import dev.zipshare.data.db.HistoryDao
 import dev.zipshare.data.db.ZipShareDb
+import dev.zipshare.data.net.ZiplineClients
+import okhttp3.Call
 import okhttp3.OkHttpClient
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -42,14 +44,16 @@ object AppModule {
         WorkManager.getInstance(context)
 
     /**
-     * Coil loader that authenticates preview requests with the active profile's token - but only
-     * when the request host matches that profile. Any other host gets no credentials at all.
+     * Coil loader for previews. A request to the active profile's own host goes through that
+     * profile's API client - the token AND its certificate pin and cleartext policy, exactly as the
+     * API calls get them. Any other host gets a plain client with no credentials at all.
      */
     @Provides
     @Singleton
     fun imageLoader(
         @ApplicationContext context: Context,
         profiles: Provider<ProfileRepository>,
+        clients: ZiplineClients,
     ): ImageLoader = ImageLoader.Builder(context)
         .crossfade(true)
         // Without an animated decoder Coil shows a GIF's first frame and nothing moves.
@@ -61,21 +65,20 @@ object AppModule {
                 add(GifDecoder.Factory())
             }
         }
-        .okHttpClient {
-            OkHttpClient.Builder()
-                .addInterceptor { chain ->
-                    val request = chain.request()
-                    val profile = profiles.get().activeNow()
-                    val host = profile?.host
-                    if (profile != null && host != null && request.url.host.equals(host, true)) {
-                        chain.proceed(
-                            request.newBuilder().header("authorization", profile.token).build(),
-                        )
-                    } else {
-                        chain.proceed(request)
-                    }
+        .callFactory {
+            val plain = OkHttpClient()
+            Call.Factory { request ->
+                val profile = profiles.get().activeNow()
+                if (profile != null && sendsCredentials(request.url.host, profile.host)) {
+                    clients.client(profile).newCall(request)
+                } else {
+                    plain.newCall(request)
                 }
-                .build()
+            }
         }
         .build()
 }
+
+/** Only the profile's own host may ever see its token. */
+internal fun sendsCredentials(requestHost: String, profileHost: String?): Boolean =
+    profileHost != null && requestHost.equals(profileHost, ignoreCase = true)

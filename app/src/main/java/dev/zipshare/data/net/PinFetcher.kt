@@ -18,9 +18,10 @@ data class ChainPin(
     val notAfter: String,
     val role: CertRole,
     /**
-     * The intermediate is the sane thing to pin. Leaf certs from an ACME/Cloudflare-style issuer
-     * rotate every few months, and a leaf pin silently breaks the app on every renewal; the
-     * issuing CA key is stable for years.
+     * Every CA cert in the chain is recommended, pinned together. A leaf pin breaks at every
+     * renewal, and a single intermediate is not safe either: Let's Encrypt issues from several
+     * sibling intermediates at random (YE1/YE2, YR1/YR2), so it breaks at about every other
+     * renewal. The intermediate plus its root survives both; one matching pin is enough.
      */
     val recommended: Boolean = false,
 )
@@ -60,9 +61,11 @@ class PinFetcher @Inject constructor(private val clients: ZiplineClients) {
                         },
                     )
                 }
-                // Prefer the first intermediate; fall back to the leaf on a chain without one.
-                val target = pins.firstOrNull { it.role == CertRole.INTERMEDIATE } ?: pins.firstOrNull()
-                pins.map { it.copy(recommended = it.pin == target?.pin) }
+                withRecommendations(pins)
             }
     }
 }
+
+/** Marks every CA cert as recommended - see [ChainPin.recommended]. A lone cert is all there is. */
+internal fun withRecommendations(pins: List<ChainPin>): List<ChainPin> =
+    pins.map { it.copy(recommended = it.role != CertRole.LEAF || pins.size == 1) }

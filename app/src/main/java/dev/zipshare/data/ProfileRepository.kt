@@ -35,6 +35,10 @@ class ProfileRepository @Inject constructor(
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    // One write at a time, in the order they were made. On the plain IO pool two quick changes
+    // (an import adds servers one by one) could land out of order, and the older list would win.
+    private val writes = Dispatchers.IO.limitedParallelism(1)
+
     private val _profiles = MutableStateFlow<List<Profile>>(emptyList())
     val profiles: StateFlow<List<Profile>> = _profiles
 
@@ -99,7 +103,7 @@ class ProfileRepository @Inject constructor(
         AppLog.log("profile", "active -> '${_profiles.value.firstOrNull { it.id == id }?.label}'")
         _activeId.value = id
         // Encrypting the write is cheap once warm, but keep it off the caller's thread regardless.
-        scope.launch {
+        scope.launch(writes) {
             secure.putString(KEY_ACTIVE, id)
         }
     }
@@ -115,7 +119,7 @@ class ProfileRepository @Inject constructor(
     }.getOrNull() ?: emptyList()
 
     private fun persist(list: List<Profile>) {
-        scope.launch {
+        scope.launch(writes) {
             secure.putString(KEY_PROFILES, json.encodeToString(ListSerializer(Profile.serializer()), list))
         }
     }

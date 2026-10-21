@@ -143,4 +143,14 @@ class ProfileBackupTest {
         val text = ProfileBackup.encrypt(profiles, "pässwörd-日本語-🔐")
         assertEquals(profiles, ProfileBackup.decrypt(text, "pässwörd-日本語-🔐"))
     }
+
+    /** The cost is read from the file, so a crafted backup must not be able to hang the import. */
+    @Test
+    fun `a backup demanding absurd key-derivation work is refused, not computed`() {
+        val text = ProfileBackup.encrypt(profiles, "pw")
+        val crafted = Regex("\"iterations\"\\s*:\\s*\\d+").replace(text, "\"iterations\": 2000000000")
+        val started = System.nanoTime()
+        assertThrows(ProfileBackup.NotABackupException::class.java) { ProfileBackup.decrypt(crafted, "pw") }
+        assertTrue("must fail fast instead of deriving the key", System.nanoTime() - started < 2_000_000_000L)
+    }
 }

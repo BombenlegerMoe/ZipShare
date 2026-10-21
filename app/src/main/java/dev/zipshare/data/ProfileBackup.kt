@@ -93,6 +93,9 @@ object ProfileBackup {
         if (envelope.version > VERSION) {
             throw NotABackupException()
         }
+        // The cost comes from the file, so a crafted one could ask for billions of rounds and
+        // hang the import. Accept only what this app writes, with room to raise it later.
+        if (envelope.iterations !in ITERATIONS..ITERATIONS * 10) throw NotABackupException()
 
         val plain = runCatching {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply {
