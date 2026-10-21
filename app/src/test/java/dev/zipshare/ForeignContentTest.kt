@@ -36,6 +36,19 @@ class ForeignContentTest {
         assertFalse(isForeignContent("content", "dev.zipshare.androidx-startup", own))
     }
 
+    /**
+     * Android strips a "userId@" prefix before it opens a provider, so these reach our own
+     * FileProvider. 1.4.10 let `0@` through and uploaded a private export.
+     */
+    @Test
+    fun `a user-id prefix does not disguise our own provider`() {
+        assertFalse(isForeignContent("content", "0@dev.zipshare.fileprovider", own))
+        assertFalse(isForeignContent("content", "10@dev.zipshare.fileprovider", own))
+        assertFalse(isForeignContent("content", "x@y@DEV.ZIPSHARE.FILEPROVIDER", own))
+        assertFalse("nothing left after the prefix", isForeignContent("content", "0@", own))
+        assertTrue("a foreign provider stays foreign", isForeignContent("content", "0@media", own))
+    }
+
     @Test
     fun `anything else is refused`() {
         assertFalse(isForeignContent(null, "media", own))

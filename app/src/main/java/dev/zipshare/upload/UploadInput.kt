@@ -22,10 +22,12 @@ data class FileMeta(val name: String, val size: Long, val mime: String)
  * Refusing `file://` costs nothing legitimate: the app holds no storage permission, so no foreign
  * file path was ever readable anyway, and Android stopped apps sharing them in 7.0.
  */
-internal fun isForeignContent(scheme: String?, authority: String?, ownAuthorities: Set<String>): Boolean =
-    scheme.equals("content", ignoreCase = true) &&
-        !authority.isNullOrBlank() &&
-        authority.lowercase() !in ownAuthorities
+internal fun isForeignContent(scheme: String?, authority: String?, ownAuthorities: Set<String>): Boolean {
+    // Android drops a "userId@" prefix when it resolves a provider (getAuthorityWithoutUserId), so
+    // "0@ours" opens our own provider. Compare the authority Android will actually open.
+    val resolved = authority?.substringAfterLast('@')?.lowercase()
+    return scheme.equals("content", ignoreCase = true) && !resolved.isNullOrBlank() && resolved !in ownAuthorities
+}
 
 /**
  * Every authority this app's own providers answer to, lowercased, read from the installed package
