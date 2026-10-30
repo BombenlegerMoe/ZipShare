@@ -56,8 +56,8 @@ android {
         targetSdk = 36
         // versionCode is what Android compares to decide an upgrade; versionName is only a label.
         // It must increase for an existing install to accept the new APK.
-        versionCode = 19
-        versionName = "1.4.11"
+        versionCode = 20
+        versionName = "1.4.12"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
