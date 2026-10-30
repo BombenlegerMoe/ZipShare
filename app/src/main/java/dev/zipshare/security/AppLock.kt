@@ -1,5 +1,6 @@
 package dev.zipshare.security
 
+import android.os.SystemClock
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -12,6 +13,13 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Times are [SystemClock.elapsedRealtime]: the wall clock can be set back by whoever holds the
+ * phone, which made the time away negative and skipped the lock.
+ */
+internal fun shouldLock(enabled: Boolean, backgroundedAt: Long?, now: Long, timeoutSeconds: Int) =
+    enabled && backgroundedAt != null && now - backgroundedAt >= timeoutSeconds * 1000L
+
 /** Locked on cold start and after the configured background timeout. */
 @Singleton
 class AppLock @Inject constructor(private val settings: SettingsStore) : DefaultLifecycleObserver {
@@ -20,13 +28,23 @@ class AppLock @Inject constructor(private val settings: SettingsStore) : Default
     private val _locked = MutableStateFlow(true)
     val locked: StateFlow<Boolean> = _locked
 
-    private var backgroundedAt = 0L
+    private var backgroundedAt: Long? = null
     private var started = false
+
+    // Cached so onStart decides before the first frame instead of after a settings read.
+    @Volatile private var enabled = true
+    @Volatile private var timeoutSeconds = 0
 
     fun start() {
         if (started) return
         started = true
-        scope.launch { _locked.value = settings.current().appLockEnabled }
+        scope.launch {
+            settings.settings.collect {
+                enabled = it.appLockEnabled
+                timeoutSeconds = it.lockTimeoutSeconds
+                if (!it.appLockEnabled) _locked.value = false
+            }
+        }
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
     }
 
@@ -35,19 +53,12 @@ class AppLock @Inject constructor(private val settings: SettingsStore) : Default
     }
 
     override fun onStop(owner: LifecycleOwner) {
-        backgroundedAt = System.currentTimeMillis()
+        backgroundedAt = SystemClock.elapsedRealtime()
     }
 
     override fun onStart(owner: LifecycleOwner) {
-        scope.launch {
-            val cfg = settings.current()
-            if (!cfg.appLockEnabled) {
-                _locked.value = false
-                return@launch
-            }
-            if (backgroundedAt == 0L) return@launch
-            val awaySeconds = (System.currentTimeMillis() - backgroundedAt) / 1000
-            if (awaySeconds >= cfg.lockTimeoutSeconds) _locked.value = true
+        if (shouldLock(enabled, backgroundedAt, SystemClock.elapsedRealtime(), timeoutSeconds)) {
+            _locked.value = true
         }
     }
 }

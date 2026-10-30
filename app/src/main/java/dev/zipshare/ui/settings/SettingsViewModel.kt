@@ -23,6 +23,7 @@ import dev.zipshare.data.net.unwrap
 import dev.zipshare.data.prefs.AppSettings
 import dev.zipshare.data.prefs.SettingsStore
 import dev.zipshare.log.AppLog
+import dev.zipshare.ui.viewer.readCapped
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -32,7 +33,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import okio.buffer
+import okio.source
 import java.io.File
+import java.io.InputStream
 import javax.inject.Inject
 
 /**
@@ -48,6 +52,10 @@ data class TotpState(
     val code: String = "",
     val error: String? = null,
 )
+
+/** Real exports are a few KB; a wrongly picked video must fail as "not an export", not with OOM. */
+internal fun readImport(input: InputStream): String =
+    readCapped(input.source().buffer(), 1024 * 1024) ?: error("file too large for an export")
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -259,7 +267,7 @@ class SettingsViewModel @Inject constructor(
     fun importSettings(uri: Uri) = viewModelScope.launch {
         val parsed = runCatching {
             val text = withContext(Dispatchers.IO) {
-                context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
+                context.contentResolver.openInputStream(uri)?.use { readImport(it) }
                     ?: error("could not open the file")
             }
             Json { ignoreUnknownKeys = true; isLenient = true }
@@ -307,7 +315,7 @@ class SettingsViewModel @Inject constructor(
     fun importProfiles(uri: Uri, password: String) = viewModelScope.launch {
         val result = runCatching {
             val text = withContext(Dispatchers.IO) {
-                context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
+                context.contentResolver.openInputStream(uri)?.use { readImport(it) }
                     ?: error("could not open the file")
             }
             withContext(Dispatchers.IO) { ProfileBackup.decrypt(text, password) }

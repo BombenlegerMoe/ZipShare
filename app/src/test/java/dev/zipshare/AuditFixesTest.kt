@@ -4,9 +4,12 @@ import dev.zipshare.data.net.CertRole
 import dev.zipshare.data.net.ChainPin
 import dev.zipshare.data.net.withRecommendations
 import dev.zipshare.di.sendsCredentials
+import dev.zipshare.security.shouldLock
+import dev.zipshare.ui.settings.readImport
 import dev.zipshare.upload.passwordWasLost
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -53,5 +56,22 @@ class AuditFixesTest {
     @Test
     fun `a lone self-signed cert is the only thing to pin`() {
         assertEquals(listOf(true), withRecommendations(listOf(pin("self", CertRole.LEAF))).map { it.recommended })
+    }
+
+    @Test
+    fun `the app locks only once the timeout has passed`() {
+        assertTrue(shouldLock(enabled = true, backgroundedAt = 1_000, now = 61_000, timeoutSeconds = 60))
+        assertFalse(shouldLock(enabled = true, backgroundedAt = 1_000, now = 60_999, timeoutSeconds = 60))
+        assertTrue("timeout 0 locks at once", shouldLock(true, 1_000, 1_000, 0))
+        assertFalse("never backgrounded", shouldLock(true, null, 61_000, 60))
+        assertFalse("lock off", shouldLock(false, 1_000, 999_999, 60))
+    }
+
+    @Test
+    fun `an import file is read up to its cap and refused beyond it`() {
+        assertEquals("{}", readImport("{}".byteInputStream()))
+        assertThrows(IllegalStateException::class.java) {
+            readImport(java.io.ByteArrayInputStream(ByteArray(1024 * 1024 + 1)))
+        }
     }
 }
