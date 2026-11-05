@@ -8,8 +8,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -61,10 +66,16 @@ class MainActivity : FragmentActivity() {
             }
 
             ZipShareTheme(themeMode = settings.themeMode, dynamicColor = settings.dynamicColor) {
-                if (locked && settings.appLockEnabled) {
-                    LockScreen(activity = this, onUnlocked = appLock::unlock)
-                } else {
-                    AppNav(startAction = startAction)
+                val showLock = locked && settings.appLockEnabled
+                val focusManager = LocalFocusManager.current
+                LaunchedEffect(showLock) { if (showLock) focusManager.clearFocus(force = true) }
+                // The lock covers the app instead of replacing it: swapping AppNav out dropped the
+                // back stack and any pending picker result whenever the lock came back.
+                Box(Modifier.fillMaxSize()) {
+                    Box(if (showLock) Modifier.clearAndSetSemantics {} else Modifier) {
+                        AppNav(startAction = startAction)
+                    }
+                    if (showLock) LockScreen(activity = this@MainActivity, onUnlocked = appLock::unlock)
                 }
             }
         }

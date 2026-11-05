@@ -274,6 +274,8 @@ fun HomeScreen(
                         state.active == null -> "No server selected. Add one to get started."
                         state.syncing && uploaded == null -> "You have ... files uploaded."
                         uploaded != null -> "You have $uploaded files uploaded."
+                        // Stats are only fetched for these two cards, so null is not a failure here.
+                        !cfg.showStats && !cfg.showTypes -> "Signed in to ${state.active?.label}."
                         else -> "Could not read your stats."
                     },
                     style = MaterialTheme.typography.bodySmall,

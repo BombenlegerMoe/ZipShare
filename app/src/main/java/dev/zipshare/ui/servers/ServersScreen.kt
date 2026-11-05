@@ -23,11 +23,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.zipshare.data.model.Profile
+import dev.zipshare.ui.ConfirmDeleteDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,6 +43,16 @@ fun ServersScreen(
 ) {
     val profiles by vm.profiles.collectAsStateWithLifecycle()
     val activeId by vm.activeId.collectAsStateWithLifecycle()
+    var deleting by remember { mutableStateOf<Profile?>(null) }
+
+    deleting?.let { profile ->
+        ConfirmDeleteDialog(
+            title = "Delete \"${profile.label}\"?",
+            text = "Its token and pin are removed from this device. The server itself is not touched.",
+            onConfirm = { vm.delete(profile.id) },
+            onDismiss = { deleting = null },
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -83,7 +98,7 @@ fun ServersScreen(
                             )
                         }
                     }
-                    IconButton(onClick = { vm.delete(profile.id) }) {
+                    IconButton(onClick = { deleting = profile }) {
                         Icon(Icons.Filled.Delete, "Delete")
                     }
                 }

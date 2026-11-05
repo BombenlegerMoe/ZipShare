@@ -80,7 +80,14 @@ data class AppSettings(
         // A fixed name saved as a DEFAULT would silently override the name format on every upload
         // (x-zipline-filename beats x-zipline-format server-side). Stripping on read also heals
         // installs that already persisted one.
-        defaultOptions = defaultOptions.copy(filename = null),
+        // Bad numbers would make the server refuse every upload; null means "not set".
+        defaultOptions = defaultOptions.copy(
+            filename = null,
+            maxViews = defaultOptions.maxViews?.takeIf { it > 0 },
+            compressionPercent = defaultOptions.compressionPercent?.coerceIn(0, 100),
+            autoPercentJpg = defaultOptions.autoPercentJpg?.coerceIn(0, 100),
+            autoPercentPng = defaultOptions.autoPercentPng?.coerceIn(0, 100),
+        ),
     )
 }
 
@@ -105,9 +112,6 @@ class SettingsStore @Inject constructor(@ApplicationContext private val context:
             )
         }
     }
-
-    /** Whole-object write, for the settings import in Diagnostic. */
-    suspend fun replaceAll(s: AppSettings) = update { s }
 
     /**
      * E4001 (folder not found): drop the folder from the saved defaults, otherwise every later

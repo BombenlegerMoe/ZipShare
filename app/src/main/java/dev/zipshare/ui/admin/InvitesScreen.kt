@@ -39,12 +39,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.zipshare.data.net.ZInvite
+import dev.zipshare.ui.ConfirmDeleteDialog
+import dev.zipshare.ui.rememberCopyText
 import dev.zipshare.ui.shell.EmptyOrError
 import dev.zipshare.ui.shell.PullRefresh
 import dev.zipshare.ui.shell.ShellTopBar
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-import dev.zipshare.ui.rememberCopyText
 
 private val EXPIRY_PRESETS = listOf(
     "never" to null,
@@ -59,6 +61,7 @@ fun InvitesScreen(onMenu: () -> Unit, vm: AdminViewModel = hiltViewModel()) {
     val snackbar = remember { SnackbarHostState() }
     val copyText = rememberCopyText()
     var creating by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf<ZInvite?>(null) }
     var expiryDays by remember { mutableStateOf<Long?>(null) }
     var maxUses by remember { mutableStateOf("") }
 
@@ -112,7 +115,7 @@ fun InvitesScreen(onMenu: () -> Unit, vm: AdminViewModel = hiltViewModel()) {
                             },
                             leadingContent = { Icon(Icons.Filled.Tag, null) },
                             trailingContent = {
-                                IconButton(onClick = { vm.deleteInvite(invite) }) {
+                                IconButton(onClick = { deleting = invite }) {
                                     Icon(Icons.Filled.Delete, "Delete")
                                 }
                             },
@@ -126,6 +129,15 @@ fun InvitesScreen(onMenu: () -> Unit, vm: AdminViewModel = hiltViewModel()) {
             }
         }
         }
+    }
+
+    deleting?.let { invite ->
+        ConfirmDeleteDialog(
+            title = "Delete invite ${invite.code}?",
+            text = "Nobody can join with this code any more.",
+            onConfirm = { vm.deleteInvite(invite) },
+            onDismiss = { deleting = null },
+        )
     }
 
     if (creating) {

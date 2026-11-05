@@ -1,10 +1,10 @@
 package dev.zipshare.ui.browse
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -44,9 +47,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -54,11 +54,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.zipshare.data.net.QuotaBody
 import dev.zipshare.data.net.ZFolder
 import dev.zipshare.data.net.ZLimitedUser
+import dev.zipshare.data.net.ZUrl
 import dev.zipshare.data.net.shortLink
+import dev.zipshare.ui.ConfirmDeleteDialog
+import dev.zipshare.ui.rememberCopyText
 import dev.zipshare.ui.shell.EmptyOrError
 import dev.zipshare.ui.shell.PullRefresh
 import dev.zipshare.ui.shell.ShellTopBar
-import dev.zipshare.ui.rememberCopyText
 
 /**
  * The frame the three list pages share: top bar, add button, pull-to-refresh, and the switch
@@ -198,6 +200,16 @@ fun UrlsScreen(onMenu: () -> Unit, vm: BrowseViewModel = hiltViewModel()) {
 
     LaunchedEffect(state.active?.id) { if (state.active != null) vm.loadUrls() }
 
+    var deleting by remember { mutableStateOf<ZUrl?>(null) }
+    deleting?.let { url ->
+        ConfirmDeleteDialog(
+            title = "Delete this link?",
+            text = "${url.vanity ?: url.code} stops working for everyone who has it.",
+            onConfirm = { vm.deleteUrl(url) },
+            onDismiss = { deleting = null },
+        )
+    }
+
     if (creating) {
         CreateUrlDialog(
             onDismiss = { creating = false },
@@ -241,7 +253,7 @@ fun UrlsScreen(onMenu: () -> Unit, vm: BrowseViewModel = hiltViewModel()) {
             },
             leadingContent = { Icon(Icons.Filled.Link, null) },
             trailingContent = {
-                IconButton(onClick = { vm.deleteUrl(url) }) {
+                IconButton(onClick = { deleting = url }) {
                     Icon(Icons.Filled.Delete, "Delete")
                 }
             },
@@ -473,15 +485,23 @@ private fun EditUserDialog(
         confirmLabel = "Save",
         confirmEnabled = username.isNotBlank(),
         onConfirm = {
-            val quota = if (maxBytes.isNotBlank() || maxFiles.isNotBlank() || maxUrls.isNotBlank()) {
-                QuotaBody(
-                    filesType = if (maxBytes.isNotBlank()) "BY_BYTES" else "BY_FILES",
-                    maxBytes = maxBytes.trim().takeIf { it.isNotEmpty() },
-                    maxFiles = maxFiles.toIntOrNull(),
-                    maxUrls = maxUrls.toIntOrNull(),
-                )
-            } else {
-                null
+            // The server replaces the whole quota: NONE clears the file limit, a missing maxUrls
+            // clears that one. BY_FILES without maxFiles would be refused (E1057).
+            val bytesLimit = maxBytes.trim().takeIf { it.isNotEmpty() }
+            val filesLimit = maxFiles.trim().toIntOrNull()
+            val quota = QuotaBody(
+                filesType = when {
+                    bytesLimit != null -> "BY_BYTES"
+                    filesLimit != null -> "BY_FILES"
+                    else -> "NONE"
+                },
+                maxBytes = bytesLimit,
+                maxFiles = filesLimit.takeIf { bytesLimit == null },
+                maxUrls = maxUrls.trim().toIntOrNull(),
+            ).takeIf {
+                bytesLimit != user.quota?.maxBytes ||
+                    filesLimit != user.quota?.maxFiles ||
+                    it.maxUrls != user.quota?.maxUrls
             }
             onSave(
                 username.trim().takeIf { it != user.username },
