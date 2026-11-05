@@ -1193,8 +1193,20 @@ class Handler(BaseHTTPRequestHandler):
                 user["username"] = body["username"]
             if body.get("role"):
                 user["role"] = body["role"]
-            if body.get("quota"):
-                user["quota"] = body["quota"]
+            q = body.get("quota")
+            if q:
+                # Mirrors the server: E1056/E1057 on a type without its limit, NONE clears it.
+                t = q.get("filesType")
+                if t == "BY_BYTES" and "maxBytes" not in q:
+                    return self._err(1056, "maxBytes is required", 400)
+                if t == "BY_FILES" and "maxFiles" not in q:
+                    return self._err(1057, "maxFiles is required", 400)
+                user["quota"] = {
+                    "filesQuota": "BY_FILES" if t == "BY_FILES" else "BY_BYTES",
+                    "maxBytes": q.get("maxBytes") if t == "BY_BYTES" else None,
+                    "maxFiles": q.get("maxFiles") if t == "BY_FILES" else None,
+                    "maxUrls": q.get("maxUrls") or None,
+                }
             # A password change is accepted but never echoed back.
             print(f"    -> user updated: {user['username']} role={user['role']} "
                   f"password={'set' if body.get('password') else 'unchanged'}", flush=True)

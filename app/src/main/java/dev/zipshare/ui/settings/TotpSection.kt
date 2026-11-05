@@ -50,7 +50,7 @@ import dev.zipshare.ui.rememberCopyText
 fun TotpSection(username: String?, vm: SettingsViewModel) {
     val state by vm.totp.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val copyText = rememberCopyText()
+    val copyText = rememberCopyText(sensitive = true)
 
     LaunchedEffect(Unit) { vm.loadTotp() }
 

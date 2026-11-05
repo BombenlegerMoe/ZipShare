@@ -25,10 +25,10 @@ import dev.zipshare.log.AppLog
 import dev.zipshare.security.Biometrics
 import dev.zipshare.ui.SecureScreen
 import dev.zipshare.ui.shareFile
+import dev.zipshare.ui.writeExportFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 
 @Composable
 fun LockScreen(activity: FragmentActivity, onUnlocked: () -> Unit) {
@@ -91,9 +91,11 @@ fun LockScreen(activity: FragmentActivity, onUnlocked: () -> Unit) {
                 onClick = {
                     scope.launch {
                         val file = withContext(Dispatchers.IO) {
-                            val dir = File(activity.cacheDir, "export").apply { mkdirs() }
-                            File(dir, "zipshare-login-log-${System.currentTimeMillis()}.txt")
-                                .apply { writeText(AppLog.exportAuth()) }
+                            writeExportFile(
+                                activity,
+                                "zipshare-login-log-${System.currentTimeMillis()}.txt",
+                                AppLog.exportAuth(),
+                            )
                         }
                         shareFile(activity, file, "text/plain")
                     }

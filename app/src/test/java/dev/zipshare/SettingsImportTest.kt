@@ -102,4 +102,18 @@ class SettingsImportTest {
             importer.decodeFromString(AppSettings.serializer(), text).defaultOptions.password,
         )
     }
+
+    @Test
+    fun `sanitise drops upload numbers the server would refuse`() {
+        val wild = AppSettings(
+            defaultOptions = dev.zipshare.data.model.UploadOptions(
+                maxViews = -3,
+                compressionPercent = 250,
+                autoPercentPng = -1,
+            ),
+        ).sanitised().defaultOptions
+        assertNull(wild.maxViews)
+        assertEquals(100, wild.compressionPercent)
+        assertEquals(0, wild.autoPercentPng)
+    }
 }

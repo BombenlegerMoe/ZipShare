@@ -14,6 +14,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import dev.zipshare.ui.pruneExports
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Provider
 
@@ -62,6 +64,8 @@ class ZipShareApp : Application(), Configuration.Provider, ImageLoaderFactory {
         // Keystore init, which is exactly what StrictMode (armed above) is watching for.
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching { secure.sweepUploadSecrets() }
+            // Exports are shared right away, so anything older than a few minutes is a leftover.
+            runCatching { pruneExports(File(cacheDir, "export")) }
         }
     }
 }

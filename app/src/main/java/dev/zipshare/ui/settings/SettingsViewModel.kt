@@ -37,6 +37,7 @@ import okio.buffer
 import okio.source
 import java.io.File
 import java.io.InputStream
+import dev.zipshare.ui.writeExportFile
 import javax.inject.Inject
 
 /**
@@ -230,10 +231,7 @@ class SettingsViewModel @Inject constructor(
 
     /** Writes an export into the FileProvider-shareable cache dir; [text] runs on IO. */
     private suspend fun writeExport(name: String, text: () -> String): File =
-        withContext(Dispatchers.IO) {
-            val dir = File(context.cacheDir, "export").apply { mkdirs() }
-            File(dir, name).apply { writeText(text()) }
-        }
+        withContext(Dispatchers.IO) { writeExportFile(context, name, text()) }
 
     fun exportHistory(onFile: (File) -> Unit) = viewModelScope.launch {
         val rows = history.all()
@@ -275,7 +273,11 @@ class SettingsViewModel @Inject constructor(
         }
         parsed.fold(
             onSuccess = {
-                store.replaceAll(it)
+                // Exports never carry the default password, so one in the file was planted.
+                // Keep whatever this device already has.
+                store.update { cur ->
+                    it.copy(defaultOptions = it.defaultOptions.copy(password = cur.defaultOptions.password))
+                }
                 AppLog.log("settings", "settings imported from file")
                 _message.value = "Settings imported."
             },

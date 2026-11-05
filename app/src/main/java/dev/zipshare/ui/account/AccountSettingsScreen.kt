@@ -84,8 +84,9 @@ import java.io.ByteArrayOutputStream
  */
 private fun avatarDataUrl(context: Context, uri: Uri): String? {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-        ?: return null
+    // A bounds-only decode always returns null; the result is in outWidth/outHeight.
+    (context.contentResolver.openInputStream(uri) ?: return null)
+        .use { BitmapFactory.decodeStream(it, null, bounds) }
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
     var sample = 1
