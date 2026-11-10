@@ -25,6 +25,12 @@ class PagingResetTest {
     }
 
     @Test
+    fun `switching server reloads even in the same folder`() {
+        assertTrue(BrowseViewModel.shouldReload(true, null, null, loadedProfile = "a", activeProfile = "b"))
+        assertFalse(BrowseViewModel.shouldReload(true, null, null, loadedProfile = "a", activeProfile = "a"))
+    }
+
+    @Test
     fun `changing folder reloads from page one`() {
         assertTrue(BrowseViewModel.shouldReload(loaded = true, current = null, requested = "fld1"))
         assertTrue(BrowseViewModel.shouldReload(loaded = true, current = "fld1", requested = null))

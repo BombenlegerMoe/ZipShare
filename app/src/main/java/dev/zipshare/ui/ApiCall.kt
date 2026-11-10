@@ -6,7 +6,9 @@ import dev.zipshare.data.net.ErrorAction
 import dev.zipshare.data.net.ZiplineApi
 import dev.zipshare.data.net.ZiplineClients
 import dev.zipshare.data.net.ZiplineException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
@@ -37,7 +39,7 @@ fun <S> MutableStateFlow<S>.callActive(
     clients: ZiplineClients,
     busy: S.(loading: Boolean, error: String?) -> S,
     block: suspend (api: ZiplineApi, profile: Profile) -> Unit,
-) {
+): Job =
     scope.launch {
         profiles.awaitReady()
         val active = profiles.activeNow()
@@ -49,6 +51,8 @@ fun <S> MutableStateFlow<S>.callActive(
         runCatching { block(clients.api(active), active) }
             .onSuccess { value = value.busy(false, null) }
             .onFailure { e ->
+                // Superseded by a newer call (see the callers that cancel): not an error to show.
+                if (e is CancellationException) throw e
                 // Browsing a folder that vanished is not a reason to touch upload defaults; the
                 // message is surfaced and that is enough. Only a dead token needs acting on.
                 if (e is ZiplineException && e.action == ErrorAction.REAUTH) {
@@ -57,4 +61,3 @@ fun <S> MutableStateFlow<S>.callActive(
                 value = value.busy(false, e.userMessage())
             }
     }
-}

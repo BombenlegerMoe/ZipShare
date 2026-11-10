@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.Uri
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
-import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
@@ -55,12 +54,12 @@ class UploadEnqueuer @Inject constructor(
             AppLog.log("upload", "enqueued ${uris.size} file(s)")
 
             // The password must not reach WorkManager's plaintext Data blob; hand over an id instead.
-            val secretId = options.password
-                ?.takeIf { it.isNotBlank() }
-                ?.let { secure.putUploadSecret(it) }
+            // One id per file: each worker removes its own secret when it ends.
+            val secretIds = perFileSecrets(uris.size, options.password, secure::putUploadSecret)
+            val hasSecret = secretIds.first() != null
             val optionsJson = json.encodeToString(
                 UploadOptions.serializer(),
-                if (secretId == null) options else options.copy(password = null),
+                if (!hasSecret) options else options.copy(password = null),
             )
             val workName = "$WORK_PREFIX${UUID.randomUUID()}"
             val cfg = settings.current()
@@ -77,12 +76,12 @@ class UploadEnqueuer @Inject constructor(
             val optionsJsonCompressed by lazy {
                 json.encodeToString(
                     UploadOptions.serializer(),
-                    (if (secretId == null) options else options.copy(password = null))
+                    (if (!hasSecret) options else options.copy(password = null))
                         .copy(compressionType = null, compressionPercent = null),
                 )
             }
 
-            val requests = uris.map { original ->
+            val requests = uris.mapIndexed { index, original ->
                 // Resolve name/type from the ORIGINAL content uri, where the ContentResolver still
                 // knows the real mime. A staged copy is a plain file:// and getType() would fall
                 // back to guessing from the extension.
@@ -137,7 +136,7 @@ class UploadEnqueuer @Inject constructor(
                             profileId,
                             prepared.optionsJson,
                             prepared.staged,
-                            secretId,
+                            secretIds[index],
                             prepared.name,
                             prepared.mime,
                         ),
@@ -157,18 +156,11 @@ class UploadEnqueuer @Inject constructor(
                     .build()
             }
 
-            // A chain uploads the batch one file at a time instead of saturating the uplink.
-            var chain = workManager.beginUniqueWork(
-                workName,
-                ExistingWorkPolicy.APPEND_OR_REPLACE,
-                requests.first(),
-            )
-            requests.drop(1).forEach { chain = chain.then(it) }
-            chain.enqueue()
+            // Independent requests, not a chain: in a chain one failed file cancels every file
+            // after it. The price is that a batch uploads a few files at once.
+            workManager.enqueue(requests)
             workName
         }
-
-    fun cancel(workName: String) = workManager.cancelUniqueWork(workName)
 
     /** What one file will be uploaded as, once compression and staging have both had their say. */
     private data class Prepared(
@@ -192,3 +184,7 @@ class UploadEnqueuer @Inject constructor(
             tags.firstOrNull { it.startsWith(PROFILE_TAG) }?.removePrefix(PROFILE_TAG)
     }
 }
+
+/** One secret id per file (null for all when there is no password). */
+internal fun perFileSecrets(count: Int, password: String?, put: (String) -> String): List<String?> =
+    List(count) { password?.takeIf { it.isNotBlank() }?.let(put) }

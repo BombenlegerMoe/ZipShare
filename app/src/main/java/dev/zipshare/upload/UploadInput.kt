@@ -168,9 +168,15 @@ object UploadInput {
 
         // copyTo's default buffer is 8 KiB, the same as the loop this replaces - the file is still
         // never held in memory.
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            FileOutputStream(target).use { out -> input.copyTo(out) }
-        } ?: throw IOException("Cannot open $uri for reading.")
+        try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(target).use { out -> input.copyTo(out) }
+            } ?: throw IOException("Cannot open $uri for reading.")
+        } catch (e: Throwable) {
+            // A half-written copy has no worker to delete it.
+            target.delete()
+            throw e
+        }
 
         return Uri.fromFile(target) to true
     }

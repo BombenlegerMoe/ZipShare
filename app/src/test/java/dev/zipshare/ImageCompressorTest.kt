@@ -9,6 +9,16 @@ import org.junit.Test
 
 class ImageCompressorTest {
 
+    /** Raw EXIF values: a portrait camera JPEG usually carries 6 and must be turned 90 degrees. */
+    @Test
+    fun `exif orientation maps to the rotation that makes the photo upright`() {
+        assertEquals(0, ImageCompressor.exifRotation(1))
+        assertEquals(90, ImageCompressor.exifRotation(6))
+        assertEquals(180, ImageCompressor.exifRotation(3))
+        assertEquals(270, ImageCompressor.exifRotation(8))
+        assertEquals(0, ImageCompressor.exifRotation(0))
+    }
+
     /**
      * The important half of this list is what it excludes. Decoding an animated GIF or WebP through
      * BitmapFactory keeps only the first frame, so "compressing" one silently destroys it.

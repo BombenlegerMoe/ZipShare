@@ -197,6 +197,12 @@ class UploadWorker @AssistedInject constructor(
                 if (cfg.notifyFailed) notifications.failure(meta.name, e.display)
                 fail(e.display, meta.name, e.code)
             }
+        } catch (e: SecurityException) {
+            // The app that shared the file took its permission back; retrying cannot help.
+            val msg = "No permission to read the file any more. Share it again."
+            AppLog.log("upload", "failed ${meta.name}: permission revoked")
+            if (cfg.notifyFailed) notifications.failure(meta.name, msg)
+            fail(msg, meta.name)
         } catch (e: IOException) {
             if (runAttemptCount < MAX_RETRIES) {
                 AppLog.log("upload", "retrying ${meta.name}: ${e.message ?: "I/O error"}")

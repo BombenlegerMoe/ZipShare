@@ -173,7 +173,10 @@ class UploadNotifications @Inject constructor(@ApplicationContext private val co
     }
 
     companion object {
-        private val resultCounter = java.util.concurrent.atomic.AtomicInteger(0)
+        // Random start: a counter from 0 after every process restart replaced notifications
+        // from the last run that were still on screen.
+        private val resultCounter =
+            java.util.concurrent.atomic.AtomicInteger(kotlin.random.Random.nextInt(10_000))
         private const val RESULT_ID_BASE = 900_000
 
         /** Result notifications live in their own id range: always > [RESULT_ID_BASE]. */

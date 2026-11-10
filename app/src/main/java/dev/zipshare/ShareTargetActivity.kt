@@ -22,6 +22,7 @@ import dev.zipshare.upload.UploadEnqueuer
 import dev.zipshare.upload.UploadNotifications
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -136,7 +137,17 @@ class ShareTargetActivity : ComponentActivity() {
                 return@launch
             }
             val options = cfg.defaultOptions
-            runCatching { enqueuer.enqueue(uris, profile.id, options) }
+            // Copying a big video takes seconds. Back cannot dismiss this, and NonCancellable
+            // keeps leaving the screen from dropping the upload half-way through the copy.
+            val preparing = AlertDialog.Builder(this@ShareTargetActivity)
+                .setMessage("Preparing ${uris.size} file(s)…")
+                .setCancelable(false)
+                .show()
+            val result = withContext(NonCancellable) {
+                runCatching { enqueuer.enqueue(uris, profile.id, options) }
+            }
+            if (!isDestroyed) preparing.dismiss()
+            result
                 .onSuccess { toastAndFinish("Uploading ${uris.size} file(s) to ${profile.label}") }
                 .onFailure { toastAndFinish(it.message ?: "Could not start the upload.") }
         }
@@ -181,7 +192,8 @@ class ShareTargetActivity : ComponentActivity() {
     }
 
     private fun toastAndFinish(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        // Application context: the activity may already be gone after a long copy.
+        Toast.makeText(applicationContext, message, Toast.LENGTH_SHORT).show()
         finish()
     }
 

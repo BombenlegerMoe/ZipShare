@@ -7,11 +7,13 @@ import dev.zipshare.log.AppLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -54,11 +56,27 @@ class ProfileRepository @Inject constructor(
         list.firstOrNull { it.id == id } ?: list.firstOrNull()
     }
 
+    /**
+     * The stored list could not be read. Writing now would replace every saved server with
+     * whatever this session added, so writes are held back until the next start reads it fine.
+     */
+    @Volatile
+    private var loadFailed = false
+
     init {
         scope.launch {
-            val loaded = load()
+            // A few tries: a Keystore hiccup right after boot is usually gone a moment later.
+            var loaded: List<Profile>? = null
+            for (attempt in 1..3) {
+                loaded = load() ?: run { delay(500L * attempt); null }
+                if (loaded != null) break
+            }
+            if (loaded == null) {
+                loadFailed = true
+                AppLog.log("profile", "could not read saved servers; not overwriting them")
+            }
             val storedActive = runCatching { secure.getString(KEY_ACTIVE) }.getOrNull()
-            _profiles.value = loaded
+            _profiles.value = loaded.orEmpty()
             _activeId.value = storedActive
             _ready.value = true
         }
@@ -79,12 +97,14 @@ class ProfileRepository @Inject constructor(
     fun byId(id: String): Profile? = _profiles.value.firstOrNull { it.id == id }
 
     fun upsert(profile: Profile) {
-        val next = _profiles.value.toMutableList()
-        val i = next.indexOfFirst { it.id == profile.id }
-        if (i >= 0) next[i] = profile else next += profile
-        _profiles.value = next
+        var existed = false
+        // Atomic: the worker and the UI can both change the list at the same moment.
+        val next = _profiles.updateAndGet { list ->
+            existed = list.any { it.id == profile.id }
+            if (existed) list.map { if (it.id == profile.id) profile else it } else list + profile
+        }
         // Label only - the profile carries the token, which must never reach the log.
-        AppLog.log("profile", "${if (i >= 0) "updated" else "added"} '${profile.label}'")
+        AppLog.log("profile", "${if (existed) "updated" else "added"} '${profile.label}'")
         clients.invalidate(profile.id)
         if (_activeId.value == null) setActive(profile.id)
         persist(next)
@@ -92,8 +112,7 @@ class ProfileRepository @Inject constructor(
 
     fun delete(id: String) {
         AppLog.log("profile", "deleted '${_profiles.value.firstOrNull { it.id == id }?.label}'")
-        val next = _profiles.value.filterNot { it.id == id }
-        _profiles.value = next
+        val next = _profiles.updateAndGet { list -> list.filterNot { it.id == id } }
         clients.invalidate(id)
         if (_activeId.value == id) setActive(next.firstOrNull()?.id)
         persist(next)
@@ -113,12 +132,15 @@ class ProfileRepository @Inject constructor(
         byId(id)?.let { upsert(it.copy(authenticated = false)) }
     }
 
-    private fun load(): List<Profile> = runCatching {
+    /** Null when the stored list exists but could not be read; empty when there is none. */
+    private fun load(): List<Profile>? = runCatching {
         secure.getString(KEY_PROFILES)
             ?.let { json.decodeFromString(ListSerializer(Profile.serializer()), it) }
-    }.getOrNull() ?: emptyList()
+            .orEmpty()
+    }.getOrNull()
 
     private fun persist(list: List<Profile>) {
+        if (loadFailed) return
         scope.launch(writes) {
             secure.putString(KEY_PROFILES, json.encodeToString(ListSerializer(Profile.serializer()), list))
         }

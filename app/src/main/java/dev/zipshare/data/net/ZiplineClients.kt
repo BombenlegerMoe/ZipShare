@@ -73,6 +73,15 @@ class ZiplineClients @Inject constructor() {
         .connectionPool(pool)
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
+        // Uploads only: after the last byte the server may still be storing or compressing.
+        // Timing out there made the worker retry an upload the server already had (a duplicate).
+        .addInterceptor { chain ->
+            if (chain.request().url.encodedPath.contains("/api/upload")) {
+                chain.withReadTimeout(10, TimeUnit.MINUTES).proceed(chain.request())
+            } else {
+                chain.proceed(chain.request())
+            }
+        }
         // No write or call timeout: a slow multi-GiB upload is not a stuck socket.
         .writeTimeout(0, TimeUnit.SECONDS)
         .callTimeout(0, TimeUnit.SECONDS)

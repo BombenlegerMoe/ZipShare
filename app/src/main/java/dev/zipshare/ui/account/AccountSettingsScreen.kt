@@ -95,7 +95,7 @@ private fun avatarDataUrl(context: Context, uri: Uri): String? {
     val options = BitmapFactory.Options().apply { inSampleSize = sample }
     val bitmap = context.contentResolver.openInputStream(uri)?.use {
         BitmapFactory.decodeStream(it, null, options)
-    } ?: return null
+    }?.let { dev.zipshare.upload.ImageCompressor.uprighted(context, uri, it) } ?: return null
 
     return try {
         val alpha = bitmap.hasAlpha()

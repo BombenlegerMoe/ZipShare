@@ -3,6 +3,8 @@ package dev.zipshare.upload
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import android.os.Build
 import dev.zipshare.log.AppLog
@@ -115,9 +117,40 @@ object ImageCompressor {
             )
         }
         val opts = BitmapFactory.Options().apply { inSampleSize = sample }
-        return context.contentResolver.openInputStream(uri)?.use {
+        val decoded = context.contentResolver.openInputStream(uri)?.use {
             BitmapFactory.decodeStream(it, null, opts)
-        }
+        } ?: return null
+        return uprighted(context, uri, decoded)
+    }
+
+    /**
+     * Turns [bitmap] the way the EXIF orientation tag says. Cameras store portrait photos
+     * sideways plus that tag; BitmapFactory ignores it and re-encoding drops it.
+     */
+    internal fun uprighted(context: Context, uri: Uri, bitmap: Bitmap): Bitmap {
+        val orientation = runCatching {
+            context.contentResolver.openInputStream(uri)?.use {
+                ExifInterface(it).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL,
+                )
+            }
+        }.getOrNull() ?: return bitmap
+        val degrees = exifRotation(orientation)
+        if (degrees == 0) return bitmap
+        val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
+        val turned = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        if (turned !== bitmap) bitmap.recycle()
+        return turned
+    }
+
+    // shortcut: mirrored orientations (2, 4, 5, 7) are left as they are; they come only from
+    // mirrored selfies, upgrade if someone reports one.
+    internal fun exifRotation(orientation: Int): Int = when (orientation) {
+        ExifInterface.ORIENTATION_ROTATE_90 -> 90
+        ExifInterface.ORIENTATION_ROTATE_180 -> 180
+        ExifInterface.ORIENTATION_ROTATE_270 -> 270
+        else -> 0
     }
 
     /**
