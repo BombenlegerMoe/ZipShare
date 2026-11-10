@@ -658,6 +658,9 @@ class Handler(BaseHTTPRequestHandler):
         shown = "none" if not auth else ("VALID" if auth == TOKEN else "WRONG")
         print(f"  {self.command} {self.path}  auth={shown}", flush=True)
 
+    def _abs(self, rel):
+        return f"http://{self.headers.get('Host', 'localhost')}{rel}"
+
     def _partial(self, raw):
         """Zipline 4.8's chunked upload, or the older one with --legacy-partial.
 
@@ -711,7 +714,8 @@ class Handler(BaseHTTPRequestHandler):
                    "createdAt": "2026-07-29T12:00:00.000Z", "deletesAt": None, "views": 0,
                    "favorite": False, "originalName": None, "folderId": None, "thumbnail": None}
             FILES.insert(0, new)
-            return self._send(200, {"files": [dict(new, pending=True)], "partialSuccess": True})
+            return self._send(200, {"files": [dict(new, pending=True, url=self._abs(new["url"]))],
+                                     "partialSuccess": True})
         if LEGACY_PARTIAL:
             body = {"files": [], "partialSuccess": True}
             if start == 0:
@@ -968,7 +972,8 @@ class Handler(BaseHTTPRequestHandler):
             if SLOW_UPLOAD:
                 time.sleep(SLOW_UPLOAD)
             print(f"    -> upload, {length} bytes -> {new['name']} (now {len(FILES)} files)", flush=True)
-            return self._send(200, {"files": [new]})
+            # Real Zipline answers an upload with an absolute url (upload/index.ts), lists with relative.
+            return self._send(200, {"files": [dict(new, url=self._abs(new["url"]))]})
         if path == "/api/upload/partial":
             return self._partial(raw)
         if path == "/api/auth/login":

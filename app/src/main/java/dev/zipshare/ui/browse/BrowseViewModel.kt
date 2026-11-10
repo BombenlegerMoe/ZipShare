@@ -41,6 +41,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -60,6 +61,8 @@ data class BrowseState(
     val folderFilterName: String? = null,
     /** False until a file page has actually arrived, so the first load is never skipped. */
     val filesLoaded: Boolean = false,
+    /** Server the loaded page came from; a switch must not keep showing the old server's files. */
+    val filesProfileId: String? = null,
     // --- sorting / searching ---
     val sort: FileSort = FileSort.CREATED,
     val ascending: Boolean = false,
@@ -151,8 +154,12 @@ class BrowseViewModel @Inject constructor(
     fun loadSettingSearchIndex(canRead: Boolean) =
         settingSearchIndex.sync(profiles.activeNow()?.id, canRead)
 
-    fun loadFiles(page: Int = _state.value.page, folder: String? = _state.value.folderFilter) =
-        launchWithProfile { api, _ ->
+    /** The running page load; a newer one cancels it so a slow old answer cannot win. */
+    private var filesJob: Job? = null
+
+    fun loadFiles(page: Int = _state.value.page, folder: String? = _state.value.folderFilter) {
+        filesJob?.cancel()
+        filesJob = launchWithProfile { api, p ->
             val s = _state.value
             val query = s.search.trim().takeIf { it.isNotEmpty() }
             val result = api.files(
@@ -172,8 +179,10 @@ class BrowseViewModel @Inject constructor(
                 totalPages = result.pages ?: 1,
                 folderFilter = folder,
                 filesLoaded = true,
+                filesProfileId = p.id,
             )
         }
+    }
 
     /**
      * Applies the folder the screen was opened with.
@@ -185,11 +194,20 @@ class BrowseViewModel @Inject constructor(
      */
     fun setFolderFilter(id: String?, name: String?) {
         val s = _state.value
-        if (!shouldReload(s.filesLoaded, s.folderFilter, id)) {
-            // Same folder, already loaded: keep whatever page the user is on.
+        if (!shouldReload(s.filesLoaded, s.folderFilter, id, s.filesProfileId, profiles.activeNow()?.id)) {
+            // Same folder on the same server, already loaded: keep whatever page the user is on.
             return
         }
-        _state.value = s.copy(folderFilter = id, folderFilterName = name, page = 1)
+        val switched = s.filesProfileId != null && s.filesProfileId != profiles.activeNow()?.id
+        _state.value = s.copy(
+            folderFilter = id,
+            folderFilterName = name,
+            page = 1,
+            // Ids from the old server mean nothing on the new one.
+            files = if (switched) emptyList() else s.files,
+            selected = if (switched) emptySet() else s.selected,
+            selecting = s.selecting && !switched,
+        )
         loadFiles(page = 1, folder = id)
     }
 
@@ -451,7 +469,12 @@ class BrowseViewModel @Inject constructor(
          * Whether [setFolderFilter] should discard the current page and reload from page 1.
          * Pure so the "don't reset on every return to the screen" rule can be unit tested.
          */
-        internal fun shouldReload(loaded: Boolean, current: String?, requested: String?): Boolean =
-            !loaded || current != requested
+        internal fun shouldReload(
+            loaded: Boolean,
+            current: String?,
+            requested: String?,
+            loadedProfile: String? = null,
+            activeProfile: String? = null,
+        ): Boolean = !loaded || current != requested || loadedProfile != activeProfile
     }
 }

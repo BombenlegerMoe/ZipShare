@@ -3,12 +3,14 @@ package dev.zipshare
 import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import androidx.work.WorkManager
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import dagger.hilt.android.HiltAndroidApp
 import dev.zipshare.data.prefs.SecureStore
 import dev.zipshare.debug.StrictModeSetup
 import dev.zipshare.log.AppLog
+import dev.zipshare.upload.UploadEnqueuer
 import dev.zipshare.upload.UploadNotifications
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -62,8 +64,22 @@ class ZipShareApp : Application(), Configuration.Provider, ImageLoaderFactory {
         //
         // Off the main thread: opening the encrypted store and reading every key is disk I/O plus
         // Keystore init, which is exactly what StrictMode (armed above) is watching for.
+        val started = System.currentTimeMillis()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching { secure.sweepUploadSecrets() }
+            // Same for staged copies: a worker that never ran (cancelled while queued, killed
+            // process) never deletes its copy. Only when no upload is left that could still need
+            // one, and only files older than this process, so a share in progress is not hit.
+            runCatching {
+                val open = WorkManager.getInstance(this@ZipShareApp)
+                    .getWorkInfosByTag(UploadEnqueuer.TAG).get()
+                    .any { !it.state.isFinished }
+                if (!open) {
+                    File(cacheDir, "staged").listFiles()
+                        ?.filter { it.lastModified() < started }
+                        ?.forEach { it.delete() }
+                }
+            }
             // Exports are shared right away, so anything older than a few minutes is a leftover.
             runCatching { pruneExports(File(cacheDir, "export")) }
         }

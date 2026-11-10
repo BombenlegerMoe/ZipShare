@@ -25,7 +25,9 @@ import dev.zipshare.log.AppLog
 import dev.zipshare.ui.userMessage
 import dev.zipshare.upload.UploadEnqueuer
 import dev.zipshare.upload.UploadInput
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -129,13 +131,17 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    /** The running sync; a newer one cancels it so an old server's answer cannot land late. */
+    private var refreshJob: Job? = null
+
     /** Pulls the dashboard: profile, stats and the configured number of recent uploads. */
     fun refresh() {
+        refreshJob?.cancel()
         val active = profiles.activeNow() ?: run {
             _state.value = _state.value.copy(stats = null, recents = emptyList(), user = null)
             return
         }
-        viewModelScope.launch {
+        refreshJob = viewModelScope.launch {
             val cfg = settings.current()
             _state.value = _state.value.copy(syncing = true, syncError = null)
             val api = clients.api(active)
@@ -157,6 +163,7 @@ class HomeViewModel @Inject constructor(
                     syncError = null,
                 )
             }.onFailure { e ->
+                if (e is CancellationException) throw e
                 AppLog.log("sync", "dashboard sync failed: ${e.message}")
                 sideEffect(active, e)
                 _state.value = _state.value.copy(
